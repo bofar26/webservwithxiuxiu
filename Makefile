@@ -2,8 +2,8 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wextra -Werror -Wall -std=c++98 -Iinclude
 SRC = main.cpp \
-	src/http-response/http-response.cpp
-OBJ = $(SRC:.c=.o)
+	src/http-response/HttpResponse.cpp
+OBJ = $(SRC:.cpp=.o)
 
 all:$(NAME)
 
