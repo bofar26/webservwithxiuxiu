@@ -12,6 +12,7 @@
 
 #include "Server.hpp"
 #include "HttpResponse.hpp"
+#include "HttpRequest.hpp"
 
 #include <iostream>
 #include <string>
@@ -90,7 +91,7 @@ void	Server::listenServer()
 }
 void	Server::handleClient(int clientFd)
 {
-	std::string	request;
+	std::string	rawRequest;
 	char	buffer[4096];
 
 	while (true)
@@ -106,15 +107,32 @@ void	Server::handleClient(int clientFd)
 		}
 		if (byteread == 0)
 			break ;
-		request.append(buffer, byteread);
-		if (request.find("\r\n\r\n") != std::string::npos)
+		rawRequest.append(buffer, byteread);
+		if (rawRequest.find("\r\n\r\n") != std::string::npos)
 			break ;
 	}
-		//for test
-		HttpResponse	response;
+		HttpResponse response;
+//test for request.
+	try
+	{
+		HttpRequest request(rawRequest);
+
 		response.setStatus(200);
 		response.setHeader("Content-Type", "text/plain");
-		response.setBody("test");
+		response.setBody("HttpRequest parsed successfully\n"
+			"method: " + request.getMethod()
+			+ "\npath: " + request.getPath()
+			+ "\nversion: " + request.getVersion()
+			+ "\nhost: " + request.getHeader("Host")
+			+ "\nbody: " + request.getBody()
+			+ "\n" + "\nx-test: " + request.getHeader("X-Test"));
+	}
+	catch (const std::exception& e)
+	{
+		response.setStatus(400);
+		response.setHeader("Content-Type", "text/plain");
+		response.setBody(std::string("Bad Request: ") + e.what() + "\n");
+	}
 
 	std::string	Rawresponse = response.toString();
 	if (send(clientFd, Rawresponse.c_str(), Rawresponse.size(), 0) == -1)

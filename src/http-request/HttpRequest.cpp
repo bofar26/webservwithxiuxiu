@@ -80,7 +80,7 @@ void	HttpRequest::parse(const std::string& rawRequest)
 	if (!std::getline(stream, line))
 		throw std::runtime_error("Bad request: empty request");
 	if (!line.empty() && line[line.size() - 1] == '\r')
-		line.erase(line[line.size() - 1]);
+		line.erase(line.size() - 1);
 	std::istringstream	Requestline(line);
 	if (!(Requestline >> _method >> _path >> _version))
 		throw std::runtime_error("Bad request: invalid request line");
@@ -93,7 +93,7 @@ void	HttpRequest::parse(const std::string& rawRequest)
 		if (split == std::string::npos)
 			throw std::runtime_error("Bad request: invalid header");
 		std::string key = line.substr(0, split);
-		std::string value = line.substr(split);
+		std::string value = line.substr(split + 1);
 
 		if (!value.empty() && value[0] == ' ')
 			value.erase(0, 1);
