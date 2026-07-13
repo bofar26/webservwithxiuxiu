@@ -4,7 +4,8 @@ CXXFLAGS = -Wextra -Werror -Wall -std=c++98 -Iinclude
 SRC = main.cpp \
 	src/http-response/HttpResponse.cpp \
 	src/server/Server.cpp \
-	src/http-request/HttpRequest.cpp
+	src/http-request/HttpRequest.cpp \
+	src/router-static/Router.cpp
 OBJ = $(SRC:.cpp=.o)
 
 all:$(NAME)
