@@ -20,7 +20,14 @@ class Router{
 	private:
 	bool	isSupportedVersion(const HttpRequest& request) const;
 	bool	isSupportedMethod(const HttpRequest& request) const;
+	HttpResponse handleGet(const HttpRequest& request) const;
 
+	bool	fileExists(const std::string& filePath) const;
+	std::string	buildFilePath(const std::string& requestPath) const;
+	std::string	readFile(const std::string& filePath) const;
+	std::string getContentType(const std::string& filePath) const;
+
+	HttpResponse	buildFileResponse(const std::string& filePath) const;
 	HttpResponse	buildTextResponse(int statusCode, const std::string& body) const;
 
 	public:

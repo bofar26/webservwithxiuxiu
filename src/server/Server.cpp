@@ -13,6 +13,7 @@
 #include "Server.hpp"
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
+#include "Router.hpp"
 
 #include <iostream>
 #include <string>
@@ -111,21 +112,16 @@ void	Server::handleClient(int clientFd)
 		if (rawRequest.find("\r\n\r\n") != std::string::npos)
 			break ;
 	}
-		HttpResponse response;
+
+	HttpResponse response;
 //test for request.
 	try
 	{
 		HttpRequest request(rawRequest);
+		Router router;
 
-		response.setStatus(200);
-		response.setHeader("Content-Type", "text/plain");
-		response.setBody("HttpRequest parsed successfully\n"
-			"method: " + request.getMethod()
-			+ "\npath: " + request.getPath()
-			+ "\nversion: " + request.getVersion()
-			+ "\nhost: " + request.getHeader("Host")
-			+ "\nbody: " + request.getBody()
-			+ "\n" + "\nx-test: " + request.getHeader("X-Test"));
+		response = router.handleRequest(request);
+
 	}
 	catch (const std::exception& e)
 	{
