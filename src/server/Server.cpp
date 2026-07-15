@@ -114,7 +114,7 @@ void	Server::handleClient(int clientFd)
 	}
 
 	HttpResponse response;
-//test for request.
+
 	try
 	{
 		HttpRequest request(rawRequest);
