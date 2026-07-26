@@ -31,7 +31,7 @@ class ServerConfig{
 
 	int	getPort();
 	std::string	getRoot();
-	std::string	getindex();
+	std::string	getIndex();
 };
 
 # endif

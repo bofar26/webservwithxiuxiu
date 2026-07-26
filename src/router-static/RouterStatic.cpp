@@ -17,6 +17,8 @@ HttpResponse Router::handleGet(const HttpRequest& request) const
 	std::string		filePath;
 
 	filePath = buildFilePath(request.getPath());
+	std::cout << "filePath = [" << filePath << "]" << std::endl; //for test index
+	std::cout << "request path = [" << request.getPath() << "]" << std::endl;
 	if (!fileExists(filePath))
 		return (buildTextResponse(404, "Not Found\n"));
 	return (buildFileResponse(filePath));

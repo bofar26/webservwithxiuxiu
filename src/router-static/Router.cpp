@@ -12,8 +12,8 @@
 
 #include "Router.hpp"
 
-Router::Router(){}
-
+Router::Router():_root(), _index(){}
+Router::Router(std::string root, std::string index):_root(root),_index(index){}
 Router::~Router(){}
 
 HttpResponse	Router::handleRequest(const HttpRequest& request) const
@@ -63,6 +63,16 @@ HttpResponse	Router::buildTextResponse(int statusCode, const std::string& body) 
 	response.setBody(body);
 
 	return (response);
+}
+
+std::string	Router::getRoot() const
+{
+	return(_root);
+}
+
+std::string	Router::getIndex() const
+{
+	return(_index);
 }
 
 

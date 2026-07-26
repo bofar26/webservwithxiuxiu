@@ -36,7 +36,7 @@ int	main(int argc, char **argv)
 	{
 		config = parser.parseServerConfig(configPath);
 
-		Server server(config.getPort());
+		Server server(config.getPort(), config.getRoot(), config.getIndex());
 		server.start();
 	}
 	catch (const std::exception& e)

@@ -12,6 +12,7 @@
 
 #include "ServerConfig.hpp"
 
+
 ServerConfig::ServerConfig():_port(8080),_root("./www"),_index("index.html"){}
 ServerConfig::~ServerConfig(){};
 ServerConfig::ServerConfig(const ServerConfig& other)
@@ -51,7 +52,7 @@ std::string	ServerConfig::getRoot()
 	return (_root);
 }
 
-std::string	ServerConfig::getindex()
+std::string	ServerConfig::getIndex()
 {
 	return (_index);
 }

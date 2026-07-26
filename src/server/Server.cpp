@@ -25,8 +25,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-Server::Server():_port(8080), _serverFd(-1){}
-Server::Server(int port):_port(port), _serverFd(-1){}
+Server::Server():_port(8080), _serverFd(-1), _root("./www"), _index("index.html"){}
+Server::Server(int port, std::string root, std::string index):_port(port), _serverFd(-1), _root(root),_index(index){}
 Server::~Server()
 {
 	if (_serverFd != -1)
@@ -118,7 +118,7 @@ void	Server::handleClient(int clientFd)
 	try
 	{
 		HttpRequest request(rawRequest);
-		Router router;
+		Router router(_root, _index);
 
 		response = router.handleRequest(request);
 

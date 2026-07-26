@@ -22,6 +22,9 @@
 
 class Router{
 	private:
+	std::string	_root;
+	std::string	_index;
+
 	bool	isSupportedVersion(const HttpRequest& request) const;
 	bool	isSupportedMethod(const HttpRequest& request) const;
 	bool	isDirectory(const std::string& filePath) const;
@@ -40,6 +43,9 @@ class Router{
 	public:
 	Router();
 	~Router();
+	Router(std::string root, std::string index);
+	std::string	getRoot() const;
+	std::string	getIndex() const;
 	HttpResponse handleRequest(const HttpRequest& request) const;
 };
 

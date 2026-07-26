@@ -21,12 +21,9 @@ bool	Router::fileExists(const std::string& filePath) const
 
 std::string	Router::buildFilePath(const std::string& requestPath) const
 {
-	std::string root;
-
-	root = "./www";
 	if (requestPath == "/")
-		return (root + "/index.html");
-	return (root + requestPath);
+		return (getRoot() + "/" + getIndex());
+	return (getRoot() + requestPath);
 }
 
 std::string	Router::readFile(const std::string& filePath) const
