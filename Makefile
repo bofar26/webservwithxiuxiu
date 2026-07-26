@@ -7,7 +7,9 @@ SRC = main.cpp \
 	src/http-request/HttpRequest.cpp \
 	src/router-static/Router.cpp \
 	src/router-static/RouterFileUtils.cpp \
-	src/router-static/RouterStatic.cpp
+	src/router-static/RouterStatic.cpp \
+	src/config-parser/ConfigParser.cpp \
+	src/config-parser/ServerConfig.cpp 
 OBJ = $(SRC:.cpp=.o)
 
 all:$(NAME)

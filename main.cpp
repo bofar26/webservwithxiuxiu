@@ -10,28 +10,26 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "HttpResponse.hpp"
 #include <iostream>
+#include "ConfigParser.hpp"
+#include "ServerConfig.hpp"
 
-#include "Server.hpp"
-
-#include <iostream>
-#include <exception>
-
-int	main(void)
+int main()
 {
 	try
 	{
-		Server server(8080);
+		ConfigParser parser;
+		ServerConfig config = parser.parserServerConfig("configs/default.conf");
 
-		std::cout << "Starting webserv on port 8080..." << std::endl;
-		server.start();
+		std::cout << "port: " << config.getPort() << std::endl;
+		std::cout << "root: " << config.getRoot() << std::endl;
+		std::cout << "index: " << config.getindex() << std::endl;
 	}
 	catch (const std::exception& e)
 	{
-		std::cerr << "Error: " << e.what() << std::endl;
-		return (1);
+		std::cerr << "Config error: " << e.what() << std::endl;
+		return 1;
 	}
 
-	return (0);
+	return 0;
 }
