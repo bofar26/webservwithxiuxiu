@@ -13,23 +13,37 @@
 #include <iostream>
 #include "ConfigParser.hpp"
 #include "ServerConfig.hpp"
+#include "Server.hpp"
 
-int main()
+int	main(int argc, char **argv)
 {
+	std::string		configPath;
+	ConfigParser	parser;
+	ServerConfig	config;
+
+	if (argc > 2)
+	{
+		std::cerr << "Usage: ./webserv [config_file]" << std::endl;
+		return (1);
+	}
+
+	if (argc == 2)
+		configPath = argv[1];
+	else
+		configPath = "configs/default.conf";
+
 	try
 	{
-		ConfigParser parser;
-		ServerConfig config = parser.parserServerConfig("configs/default.conf");
+		config = parser.parseServerConfig(configPath);
 
-		std::cout << "port: " << config.getPort() << std::endl;
-		std::cout << "root: " << config.getRoot() << std::endl;
-		std::cout << "index: " << config.getindex() << std::endl;
+		Server server(config.getPort());
+		server.start();
 	}
 	catch (const std::exception& e)
 	{
-		std::cerr << "Config error: " << e.what() << std::endl;
-		return 1;
+		std::cerr << "Error: " << e.what() << std::endl;
+		return (1);
 	}
 
-	return 0;
+	return (0);
 }

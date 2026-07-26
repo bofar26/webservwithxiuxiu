@@ -113,7 +113,7 @@ void	ConfigParser::parseInsideBlock(const std::vector<std::string>& tokens, size
 	pos++;
 }
 
-ServerConfig	ConfigParser::parserServerConfig(const std::string filePath) const
+ServerConfig	ConfigParser::parseServerConfig(const std::string filePath) const
 {
 	ServerConfig	result;
 	size_t	pos = 0;

@@ -25,7 +25,7 @@ class	ConfigParser{
 	public:
 	ConfigParser();
 	~ConfigParser();
-	ServerConfig	parserServerConfig(const std::string filePath) const;
+	ServerConfig	parseServerConfig(const std::string filePath) const;
 };
 
 #endif
