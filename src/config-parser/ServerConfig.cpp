@@ -26,6 +26,7 @@ ServerConfig& ServerConfig::operator=(const ServerConfig& other)
 		_port = other._port;
 		_root = other._root;
 		_index = other._index;
+		_locations = other._locations;
 	}
 	return (*this);
 }
@@ -42,17 +43,28 @@ void	ServerConfig::setIndex(std::string index)
 	_index = index;
 }
 
-int	ServerConfig::getPort()
+void	ServerConfig::addLocation(const LocationConfig& location)
+{
+	_locations.push_back(location);
+}
+
+int	ServerConfig::getPort() const
 {
 	return (_port);
 }
 
-std::string	ServerConfig::getRoot()
+std::string	ServerConfig::getRoot() const
 {
 	return (_root);
 }
 
-std::string	ServerConfig::getIndex()
+std::string	ServerConfig::getIndex() const
 {
 	return (_index);
 }
+
+const std::vector<LocationConfig>& ServerConfig::getLocation() const
+{
+	return (_locations);
+}
+

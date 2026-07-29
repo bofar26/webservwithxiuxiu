@@ -13,6 +13,7 @@
 #ifndef SERVERCONFIG_HPP
 #define SERVERCONFIG_HPP
 
+#include "LocationParser.hpp"
 #include <string>
 
 class ServerConfig{
@@ -20,6 +21,7 @@ class ServerConfig{
 	int	_port;
 	std::string	_root;
 	std::string	_index;
+	std::vector<LocationConfig> _locations;
 	public:
 	ServerConfig();
 	~ServerConfig();
@@ -28,10 +30,13 @@ class ServerConfig{
 	void	setPort(int port);
 	void	setRoot(std::string root);
 	void	setIndex(std::string index);
+	void	addLocation(const LocationConfig& _location);
 
-	int	getPort();
-	std::string	getRoot();
-	std::string	getIndex();
+	int	getPort() const;
+	std::string	getRoot() const;
+	std::string	getIndex() const;
+	const std::vector<LocationConfig>& getLocation() const;
+
 };
 
 # endif

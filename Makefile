@@ -9,7 +9,8 @@ SRC = main.cpp \
 	src/router-static/RouterFileUtils.cpp \
 	src/router-static/RouterStatic.cpp \
 	src/config-parser/ConfigParser.cpp \
-	src/config-parser/ServerConfig.cpp 
+	src/config-parser/ServerConfig.cpp \
+	src/config-parser/LocationConfig.cpp
 OBJ = $(SRC:.cpp=.o)
 
 all:$(NAME)

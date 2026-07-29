@@ -13,14 +13,17 @@
 #ifndef CONFIGPARSER_HPP
 #define CONFIGPARSER_HPP
 #include "ServerConfig.hpp"
+#include "LocationParser.hpp"
 #include <vector>
 #include <string>
 
 class	ConfigParser{
 	private:
 	std::vector<std::string> tokenize(const std::string content) const;
-	void	parseServerBlock(const std::vector<std::string>& token, size_t& pos, ServerConfig& config) const;
-	void	parseInsideBlock(const std::vector<std::string>& token, size_t& pos, ServerConfig& config) const;
+	void	parseServerBlock(const std::vector<std::string>& tokens, size_t& pos, ServerConfig& config) const;
+	void	parseLocationBlock(const std::vector<std::string>& tokens, size_t& pos, ServerConfig& config) const;
+	void	parseInsideBlock(const std::vector<std::string>& tokens, size_t& pos, ServerConfig& config) const;
+	void	parseInsideBlock(const std::vector<std::string>& tokens, size_t& pos, LocationConfig& config) const;
 
 	public:
 	ConfigParser();
