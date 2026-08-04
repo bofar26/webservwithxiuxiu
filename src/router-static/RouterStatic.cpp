@@ -17,8 +17,8 @@ HttpResponse Router::handleGet(const HttpRequest& request) const
 	std::string		filePath;
 
 	filePath = buildFilePath(request.getPath());
-	std::cout << "filePath = [" << filePath << "]" << std::endl; //for test index
 	std::cout << "request path = [" << request.getPath() << "]" << std::endl;
+	std::cout << "file path    = [" << filePath << "]" << std::endl;
 	if (!fileExists(filePath))
 		return (buildTextResponse(404, "Not Found\n"));
 	return (buildFileResponse(filePath));
@@ -51,4 +51,15 @@ HttpResponse	Router::buildFileResponse(const std::string& filePath) const
 	response.setBody(readFile(filePath));
 
 	return (response);
+}
+
+const	LocationConfig* Router::findLocation(const std::string& path) const
+{
+	const std::vector<LocationConfig>& config_locations = _config.getLocation();
+	for(size_t i = 0; i < config_locations.size(); i ++)
+	{
+		if (path.compare(0, config_locations[i].getPath().length(), config_locations[i].getPath()) == 0)
+			return (&config_locations[i]);
+	}
+	return (NULL);
 }

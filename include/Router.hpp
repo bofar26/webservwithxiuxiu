@@ -15,6 +15,7 @@
 
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
+#include "ServerConfig.hpp"
 #include <sys/stat.h>
 #include <fstream>
 #include <stdexcept>
@@ -22,8 +23,7 @@
 
 class Router{
 	private:
-	std::string	_root;
-	std::string	_index;
+	ServerConfig	_config;
 
 	bool	isSupportedVersion(const HttpRequest& request) const;
 	bool	isSupportedMethod(const HttpRequest& request) const;
@@ -39,13 +39,14 @@ class Router{
 
 	HttpResponse	buildFileResponse(const std::string& filePath) const;
 	HttpResponse	buildTextResponse(int statusCode, const std::string& body) const;
+	const	LocationConfig* findLocation(const std::string& path) const;
 
 	public:
 	Router();
+	Router(ServerConfig& config);
 	~Router();
 	Router(std::string root, std::string index);
-	std::string	getRoot() const;
-	std::string	getIndex() const;
+	ServerConfig	getConfig() const;
 	HttpResponse handleRequest(const HttpRequest& request) const;
 };
 

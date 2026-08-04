@@ -14,13 +14,12 @@
 #define SERVER_HPP
 
 #include <string>
+#include <ServerConfig.hpp>
 
 class Server{
 	private:
-	int	_port;
+	ServerConfig	_config;
 	int	_serverFd;
-	std::string	_root;
-	std::string	_index;
 
 	void	createServer();
 	void	bindServer();
@@ -29,7 +28,7 @@ class Server{
 
 	public:
 	Server();
-	Server(int port, std::string root, std::string index);
+	Server(ServerConfig& serverconfig);
 	~Server();
 	Server(const Server& other);
 	Server& operator=(const Server& other);

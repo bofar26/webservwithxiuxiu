@@ -25,8 +25,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-Server::Server():_port(8080), _serverFd(-1), _root("./www"), _index("index.html"){}
-Server::Server(int port, std::string root, std::string index):_port(port), _serverFd(-1), _root(root),_index(index){}
+Server::Server():_config(), _serverFd(-1){}
+Server::Server(ServerConfig& config):_config(config), _serverFd(-1){}
 Server::~Server()
 {
 	if (_serverFd != -1)
@@ -41,7 +41,7 @@ Server& Server::operator=(const Server& other)
 {
 	if (this != &other)
 	{
-		_port = other._port;
+		_config = other._config;
 		_serverFd = other._serverFd;
 	}
 	return (*this);
@@ -72,7 +72,7 @@ void	Server::bindServer()
 	memset(&address, 0, sizeof(address));
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(_port);
+	address.sin_port = htons(_config.getPort());
 	if (bind(_serverFd, reinterpret_cast<struct sockaddr *>(&address), sizeof(address)) == -1)
 	{
 		std::cerr << "send errno: " << errno << std::endl;
@@ -118,7 +118,7 @@ void	Server::handleClient(int clientFd)
 	try
 	{
 		HttpRequest request(rawRequest);
-		Router router(_root, _index);
+		Router router(_config);
 
 		response = router.handleRequest(request);
 

@@ -21,9 +21,31 @@ bool	Router::fileExists(const std::string& filePath) const
 
 std::string	Router::buildFilePath(const std::string& requestPath) const
 {
-	if (requestPath == "/")
-		return (getRoot() + "/" + getIndex());
-	return (getRoot() + requestPath);
+	std::string	root;
+	std::string	index;
+	const LocationConfig* location;
+	std::string	relativePath;
+
+	root = _config.getRoot();
+	index = _config.getIndex();
+	location = findLocation(requestPath);
+	std::cout << "location count = [" << _config.getLocation().size() << "]" << std::endl;
+	relativePath = requestPath;
+
+	if (location != NULL)
+	{
+		if (location->getRoot() != "")
+			root = location->getRoot();
+		if (location->getIndex() != "")
+			index = location->getIndex();
+
+		relativePath = relativePath.substr(location->getPath().length());
+		if (relativePath == "")
+			relativePath = "/";
+	}
+	if (relativePath == "/")
+		return (root + "/" + index);
+	return (root + relativePath);
 }
 
 std::string	Router::readFile(const std::string& filePath) const
