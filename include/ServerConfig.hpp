@@ -13,7 +13,7 @@
 #ifndef SERVERCONFIG_HPP
 #define SERVERCONFIG_HPP
 
-#include "LocationParser.hpp"
+#include "LocationConfig.hpp"
 #include <string>
 
 class ServerConfig{

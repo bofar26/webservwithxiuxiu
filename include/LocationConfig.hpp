@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   LocationParser.hpp                                 :+:      :+:    :+:   */
+/*   Locationconfig.hpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: mipang <mipang@student.42.fr>              #+#  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,8 +10,8 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#ifndef LOCATIONPARSER_HPP
-#define LOCATIONPARSER_HPP
+#ifndef LOCATIONCONFIG_HPP
+#define LOCATIONCONFIG_HPP
 
 #include <string>
 #include <vector>

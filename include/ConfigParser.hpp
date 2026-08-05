@@ -13,7 +13,7 @@
 #ifndef CONFIGPARSER_HPP
 #define CONFIGPARSER_HPP
 #include "ServerConfig.hpp"
-#include "LocationParser.hpp"
+#include "LocationConfig.hpp"
 #include <vector>
 #include <string>
 

@@ -1,7 +1,7 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   LocationParser.cpp                                 :+:      :+:    :+:   */
+/*   LocationConfig.cpp                                 :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: mipang <mipang@student.42.fr>              #+#  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
@@ -10,7 +10,7 @@
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "LocationParser.hpp"
+#include "LocationConfig.hpp"
 
 LocationConfig::LocationConfig():_path("/"), _root("./www"), _index("index.html"){}
 LocationConfig::~LocationConfig(){}
