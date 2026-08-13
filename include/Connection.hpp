@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/05 00:00:00 by xzhen             #+#    #+#             */
-/*   Updated: 2026/08/11 18:32:47 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/13 00:00:00 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,10 +17,18 @@
 #include <ctime>
 #include <cstddef>
 #include "ServerConfig.hpp"
+#include "CgiHandler.hpp"
+
+//only pointers and references to these are used in the declarations below,
+//so a forward declaration is enough and the headers stay decoupled
+class HttpRequest;
+class HttpResponse;
+class Router;
 
 //it represents a connected client
 //it remembers the state of the connection:
 // READING: receiving a request
+// CGI    : a script is running, we are waiting on its pipes, not on the client
 // WRITING: sending a response
 // DONE: finished, ready to be closed
 
@@ -28,8 +36,9 @@ class Connection{
 	public:
 	enum State{//most crucial
 		READING,//0
-		WRITING,//1
-		DONE//2
+		CGI,//1 waiting for a child process
+		WRITING,//2
+		DONE//3
 	};
 
 	private:
@@ -40,6 +49,9 @@ class Connection{
 	std::string		_responseToSend;//response ready to send
 	std::size_t		_responseSent;//response which has been sent
 	time_t			_lastActivity;//last time of activity
+	CgiHandler		*_cgi;//NULL unless a script is running for this client
+	std::string		_logMethod;//kept for the access log once the CGI is over
+	std::string		_logPath;
 
 	Connection(const Connection& other);
 	Connection& operator=(const Connection& other);
@@ -50,6 +62,12 @@ class Connection{
 	//queues a ready made response without going through the Router
 	void	queueError(int code, const std::string& text);
 	void	processRequest();
+	//tries to start a CGI for this request, false when it is not a CGI URL
+	bool	startCgi(const HttpRequest& request, const Router& router);
+	//turns what the script printed into a real HTTP response
+	void	finishCgi();
+	//shared tail of processRequest / queueError / finishCgi
+	void	queueResponse(const HttpResponse& response, int code);
 
 	public:
 	Connection(int fd, const ServerConfig& config);
@@ -62,6 +80,12 @@ class Connection{
 	bool	getWrite() const;//return true if _state == WRITING
 	bool	getDone() const;//return true if _state == DONE
 	bool	isTimedOut(time_t now) const;
+
+	//the event loop needs these to put the CGI pipes in poll()
+	int		getCgiReadFd() const;//-1 when no script is running
+	int		getCgiWriteFd() const;//-1 when there is no body left to push
+	void	onCgiReadable();//poll said the script printed something
+	void	onCgiWritable();//poll said the script can take more body
 
 	int		getFd() const;
 };

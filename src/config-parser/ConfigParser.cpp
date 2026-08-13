@@ -191,6 +191,17 @@ void	ConfigParser::parseInsideBlock(const std::vector<std::string>& tokens, size
 		config.setAutoindex(tokens[pos] == "on");
 		pos++;
 	}
+	else if (directive == "cgi_ext")
+	{
+		//cgi_ext <extension> <interpreter>;   e.g. cgi_ext .py /usr/bin/python3;
+		std::string	extension = tokens[pos];
+
+		pos++;
+		if (pos >= tokens.size())
+			throw std::runtime_error("Expected an interpreter after cgi_ext");
+		config.addCgi(extension, tokens[pos]);
+		pos++;
+	}
 	else if (directive == "allowed_methods")//
 	{
 		//this one takes several values: read tokens until the ;

@@ -18,6 +18,8 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
+#include <cstdlib>
 #include <unistd.h>
 #include <sys/socket.h>
 
@@ -28,11 +30,15 @@ namespace{
 
 Connection::Connection(int fd, const ServerConfig& config)
 	: _fd(fd), _state(READING), _config(config),
-	  _requestReceived(), _responseToSend(), _responseSent(0), _lastActivity(time(NULL))
+	  _requestReceived(), _responseToSend(), _responseSent(0), _lastActivity(time(NULL)),
+	  _cgi(NULL), _logMethod(), _logPath()
 {}
 
+//deleting the handler kills the child and closes both pipes, so a client that
+//disconnects mid script never leaves a process or an fd behind
 Connection::~Connection()
 {
+	delete _cgi;
 	if (_fd != -1)//-1 means socket isn't created
 		close(_fd);
 }
@@ -58,8 +64,11 @@ bool	Connection::getDone() const
 }
 //----------------------------------------------
 //true if no activity for more than connectionTimeout seconds
+//a runaway script gets its own, much shorter deadline
 bool	Connection::isTimedOut(time_t now) const
 {
+	if (_cgi != NULL && _cgi->isTimedOut(now))
+		return (true);
 	return (now - _lastActivity > connectionTimeout);
 }
 //
@@ -178,6 +187,12 @@ void	Connection::processRequest()
 
 		method = request.getMethod();
 		path = request.getPath();
+		_logMethod = method;
+		_logPath = path;
+		//a CGI cannot answer immediately: start it and let poll() drive the
+		//pipes. The response is built later, in finishCgi().
+		if (startCgi(request, router))
+			return ;
 		//http request -> router -> http response
 		response = router.handleRequest(request);
 	}
@@ -187,10 +202,166 @@ void	Connection::processRequest()
 		response.setHeader("Content-Type", "text/plain");
 		response.setBody(std::string("Bad Request: ") + e.what() + "\n");
 	}				//response here is convert from request, it's valid
+	queueResponse(response, response.getStatusCode());
+}
+
+//the single place where a finished response enters the WRITING state
+void	Connection::queueResponse(const HttpResponse& response, int code)
+{
 	//access log: one line per request, port + method + path + status
-	std::cout << "[" << _config.getPort() << "] " << method << " " << path
-		<< " -> " << response.getStatusCode() << std::endl;
+	std::cout << "[" << _config.getPort() << "] "
+		<< (_logMethod.empty() ? "-" : _logMethod) << " "
+		<< (_logPath.empty() ? "-" : _logPath)
+		<< " -> " << code << std::endl;
 	_responseToSend = response.toString();
 	_responseSent = 0;
 	_state = WRITING;
+}
+
+//only GET and POST reach a script; the Router already refused anything the
+//location does not allow, so here we just look at the extension
+bool	Connection::startCgi(const HttpRequest& request, const Router& router)
+{
+	std::string	interpreter;
+	std::string	script;
+	std::string	query;
+
+	if (!router.isCgiRequest(request, interpreter, script, query))
+		return (false);
+
+	std::vector<std::string>	env;
+	std::ostringstream			port;
+	std::ostringstream			length;
+
+	port << _config.getPort();
+	length << request.getBody().size();
+
+	//the variables RFC 3875 asks a server to hand over to the script
+	env.push_back("GATEWAY_INTERFACE=CGI/1.1");
+	env.push_back("SERVER_PROTOCOL=HTTP/1.1");
+	env.push_back("SERVER_SOFTWARE=webserv/1.0");
+	env.push_back("SERVER_PORT=" + port.str());
+	env.push_back("REQUEST_METHOD=" + request.getMethod());
+	env.push_back("QUERY_STRING=" + query);
+	env.push_back("SCRIPT_NAME=" + request.getPath());
+	env.push_back("SCRIPT_FILENAME=" + script);
+	env.push_back("CONTENT_LENGTH=" + length.str());
+	env.push_back("CONTENT_TYPE=" + request.getHeader("Content-Type"));
+	env.push_back("HTTP_HOST=" + request.getHeader("Host"));
+	env.push_back("REDIRECT_STATUS=200");//php-cgi refuses to run without it
+	env.push_back("PATH=/usr/local/bin:/usr/bin:/bin");
+
+	_cgi = new CgiHandler();
+	if (!_cgi->start(interpreter, script, env, request.getBody()))
+	{
+		delete _cgi;
+		_cgi = NULL;
+		queueError(500, "Internal Server Error");
+		return (true);//handled: an error response is already queued
+	}
+	_state = CGI;
+	return (true);
+}
+
+//the script prints its own headers, an empty line, then the body:
+//    Content-Type: text/html
+//
+//    <html>...
+//so we split on that empty line and copy its headers into our response.
+//When it prints no headers at all, everything is treated as the body.
+void	Connection::finishCgi()
+{
+	HttpResponse	response;
+
+	if (_cgi == NULL || _cgi->isFailed())
+	{
+		response.setStatus(502);//the gateway (our CGI) misbehaved
+		response.setHeader("Content-Type", "text/plain");
+		response.setBody("Bad Gateway\n");
+		delete _cgi;
+		_cgi = NULL;
+		queueResponse(response, 502);
+		return ;
+	}
+
+	const std::string&	output = _cgi->getOutput();
+	size_t				headerEnd = output.find("\r\n\r\n");
+	size_t				skip = 4;
+
+	if (headerEnd == std::string::npos)
+	{
+		headerEnd = output.find("\n\n");//scripts often use bare newlines
+		skip = 2;
+	}
+
+	response.setStatus(200);
+	if (headerEnd == std::string::npos)
+	{
+		response.setHeader("Content-Type", "text/html");
+		response.setBody(output);
+	}
+	else
+	{
+		std::istringstream	headers(output.substr(0, headerEnd));
+		std::string			line;
+
+		while (std::getline(headers, line))
+		{
+			if (!line.empty() && line[line.size() - 1] == '\r')
+				line.erase(line.size() - 1);
+			size_t	colon = line.find(':');
+			if (colon == std::string::npos)
+				continue ;
+			std::string	key = line.substr(0, colon);
+			std::string	value = line.substr(colon + 1);
+			if (!value.empty() && value[0] == ' ')
+				value.erase(0, 1);
+			//"Status: 404 Not Found" is how a CGI changes the status code
+			if (key == "Status")
+				response.setStatus(atoi(value.c_str()));
+			else
+				response.setHeader(key, value);
+		}
+		//setBody recomputes Content-Length, so a stale one from the script
+		//cannot desynchronise the answer
+		response.setBody(output.substr(headerEnd + skip));
+	}
+
+	delete _cgi;
+	_cgi = NULL;
+	queueResponse(response, response.getStatusCode());
+}
+
+int	Connection::getCgiReadFd() const
+{
+	if (_cgi == NULL)
+		return (-1);
+	return (_cgi->getReadFd());
+}
+
+int	Connection::getCgiWriteFd() const
+{
+	if (_cgi == NULL)
+		return (-1);
+	return (_cgi->getWriteFd());
+}
+
+//poll() reported the script's stdout is readable
+void	Connection::onCgiReadable()
+{
+	if (_cgi == NULL)
+		return ;
+	_lastActivity = time(NULL);
+	_cgi->onReadable();
+	if (!_cgi->isRunning())//the script closed its stdout: output is complete
+		finishCgi();
+}
+
+//poll() reported the script's stdin accepts more of the request body
+void	Connection::onCgiWritable()
+{
+	if (_cgi == NULL)
+		return ;
+	_lastActivity = time(NULL);
+	_cgi->onWritable();
 }

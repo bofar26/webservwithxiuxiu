@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/07/15 12:27:51 by mipang            #+#    #+#             */
-/*   Updated: 2026/08/13 14:07:36 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/13 21:57:05 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -92,7 +92,43 @@ HttpResponse Router::handlePost(const HttpRequest& request) const
 	return (response);
 }
 
-//extract the real content of file from multipart/form-data
+//decide if this is a request which should be handled by CGI, true yes, false not
+bool	Router::isCgiRequest(const HttpRequest& request, std::string& interpreter,
+			std::string& scriptPath, std::string& queryString) const
+{
+	std::string	path = request.getPath();
+	size_t		mark = path.find('?');
+
+	queryString = "";
+	if (mark != std::string::npos)
+	{
+		queryString = path.substr(mark + 1);
+		path = path.substr(0, mark);
+	}
+	
+	if (!isPathSafe(path))
+		return (false);
+
+	const LocationConfig	*location = findLocation(path);
+	if (location == NULL)
+		return (false);
+	if (location->getRedirect() != "")//a redirected route never executes
+		return (false);
+	if (!location->isMethodAllowed(request.getMethod()))
+		return (false);
+
+	size_t	dot = path.find_last_of('.');
+	if (dot == std::string::npos)
+		return (false);
+	//if .py isn't declared as a CGI
+	interpreter = location->getCgiInterpreter(path.substr(dot));
+	if (interpreter == "")//this extension is not declared as a CGI here
+		return (false);
+
+	scriptPath = buildFilePath(path);
+	return (fileExists(scriptPath));
+}
+
 bool	Router::extractMultipart(const std::string& body, const std::string& contentType,
 			std::string& fileName, std::string& fileData) const
 {	//find "boundary=" in content of post request

@@ -276,3 +276,38 @@ LocationConfig
   _redirect("")
 {}
 
+6.cgi
+                 浏览器
+                    │
+                    │
+          POST /cgi/register
+                    │
+                    ▼
+             ┌─────────────┐
+             │  Web Server │
+             └─────────────┘
+                    │
+              发现 /cgi/
+                    │
+                  fork()
+                    │
+                    ▼
+             ┌─────────────┐
+             │ 子进程 CGI  │
+             └─────────────┘
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+       stdin                stdout
+          │                   │
+          ▼                   ▲
+       POST Body          HTTP Response
+          │                   │
+          └──────► CGI ◄──────┘
+                    │
+                    ▼
+              生成 HTML
+                    │
+                    ▼
+                 浏览器
+

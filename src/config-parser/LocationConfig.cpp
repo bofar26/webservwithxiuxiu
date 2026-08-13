@@ -14,7 +14,8 @@
 
 LocationConfig::LocationConfig()
 	: _path("/"), _root("./www"), _index("index.html"),
-	  _allowedMethods(), _autoindex(false), _uploadStore(""), _redirect(""){}
+	  _allowedMethods(), _autoindex(false), _uploadStore(""), _redirect(""),
+	  _cgi(){}
 
 LocationConfig::~LocationConfig(){}
 
@@ -33,8 +34,24 @@ LocationConfig& LocationConfig::operator=(const LocationConfig& other)
 		_autoindex = other._autoindex;
 		_uploadStore = other._uploadStore;
 		_redirect = other._redirect;
+		_cgi = other._cgi;
 	}
 	return (*this);
+}
+
+void	LocationConfig::addCgi(const std::string& extension, const std::string& interpreter)
+{
+	_cgi[extension] = interpreter;
+}
+
+//empty string means "this extension is not a CGI in this location"
+std::string	LocationConfig::getCgiInterpreter(const std::string& extension) const
+{
+	std::map<std::string, std::string>::const_iterator	it = _cgi.find(extension);
+
+	if (it == _cgi.end())
+		return ("");
+	return (it->second);
 }
 
 std::string LocationConfig::getPath() const

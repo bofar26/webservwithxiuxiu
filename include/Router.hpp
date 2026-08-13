@@ -66,6 +66,12 @@ class Router{
 	~Router();
 	ServerConfig	getConfig() const;
 	HttpResponse handleRequest(const HttpRequest& request) const;
+	//Connection asks this before calling handleRequest: a CGI cannot be
+	//answered on the spot, it has to be started and polled like a socket.
+	//Fills interpreter / scriptPath / queryString and returns true when the
+	//URL maps to a script the config declared with cgi_ext.
+	bool	isCgiRequest(const HttpRequest& request, std::string& interpreter,
+				std::string& scriptPath, std::string& queryString) const;
 };
 
 # endif

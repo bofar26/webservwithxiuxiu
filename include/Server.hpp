@@ -28,6 +28,8 @@ class Server{
 	std::map<int, size_t>		_listenFds;//key=_listenFds[fd] value=_configs[index];
 	std::map<int, Connection *>	_connections;//this client fd corresponds to which client connection, _connections[fd] = Connection[index];
 	std::vector<struct pollfd>	_pollFds;//all fds to poll, including listening fds and client fds
+	//a CGI pipe belongs to a client: pipe fd -> client fd, rebuilt every loop
+	std::map<int, int>			_cgiFds;
 	
 	//copying a Server is not allowed, fds couldn't be copied
 	Server(const Server& other);

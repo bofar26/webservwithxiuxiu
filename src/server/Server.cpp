@@ -37,10 +37,10 @@ static void	handleSigint(int)
 	g_stop = 1;
 }
 
-Server::Server():_configs(), _listenFds(), _connections(), _pollFds(){}
+Server::Server():_configs(), _listenFds(), _connections(), _pollFds(), _cgiFds(){}
 
 Server::Server(const std::vector<ServerConfig>& configs)
-	: _configs(configs), _listenFds(), _connections(), _pollFds(){}
+	: _configs(configs), _listenFds(), _connections(), _pollFds(), _cgiFds(){}
 //clean up all connections and close all listen fd(listening sockets).
 Server::~Server()
 {
@@ -118,6 +118,7 @@ void	Server::buildPollSet()
 	struct pollfd	entry;
 
 	_pollFds.clear();
+	_cgiFds.clear();
 	//add all listening sockets to the poll
 	for (std::map<int, size_t>::iterator it = _listenFds.begin();
 		it != _listenFds.end(); ++it)
@@ -139,6 +140,27 @@ void	Server::buildPollSet()
 			entry.events |= POLLOUT;
 		entry.revents = 0;
 		_pollFds.push_back(entry);//add this client connection to the poll
+
+		//pipes can block just like sockets, so the subject requires them to go
+		//through the same poll(). Remember which client owns each pipe.
+		int	cgiRead = it->second->getCgiReadFd();
+		if (cgiRead != -1)
+		{
+			entry.fd = cgiRead;
+			entry.events = POLLIN;//the script printed something
+			entry.revents = 0;
+			_pollFds.push_back(entry);
+			_cgiFds[cgiRead] = it->first;
+		}
+		int	cgiWrite = it->second->getCgiWriteFd();
+		if (cgiWrite != -1)
+		{
+			entry.fd = cgiWrite;
+			entry.events = POLLOUT;//the script can take more of the body
+			entry.revents = 0;
+			_pollFds.push_back(entry);
+			_cgiFds[cgiWrite] = it->first;
+		}
 	}
 }
 //attribute tasks to each fd; if it's a listening socket, accept the new client connection, if it's a client connection, read or write data.
@@ -160,6 +182,23 @@ void	Server::dispatch()
 				acceptNew(fd);
 			continue ;
 		}
+		//a CGI pipe: hand the event to the client that started the script
+		std::map<int, int>::iterator	cgi = _cgiFds.find(fd);
+		if (cgi != _cgiFds.end())
+		{
+			std::map<int, Connection *>::iterator	owner = _connections.find(cgi->second);
+
+			if (owner == _connections.end())
+				continue ;
+			if (events & POLLOUT)
+				owner->second->onCgiWritable();
+			else
+				owner->second->onCgiReadable();//POLLIN, POLLHUP or POLLERR
+			if (owner->second->getDone())
+				finished.push_back(cgi->second);
+			continue ;
+		}
+
 		//if this fd is a client connection, read or write
 		std::map<int, Connection *>::iterator	it = _connections.find(fd);
 		if (it == _connections.end())

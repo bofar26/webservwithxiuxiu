@@ -5,6 +5,7 @@ SRC = main.cpp \
 	src/http-response/HttpResponse.cpp \
 	src/server/Server.cpp \
 	src/server/Connection.cpp \
+	src/cgi/CgiHandler.cpp \
 	src/http-request/HttpRequest.cpp \
 	src/router-static/Router.cpp \
 	src/router-static/RouterFileUtils.cpp \

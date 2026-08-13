@@ -15,6 +15,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 //new:
 //_allowedMethods, _autoindex, _uploadStore, _redirect 
@@ -29,6 +30,7 @@ class LocationConfig{
 	bool						_autoindex;//true or false
 	std::string					_uploadStore;//./public
 	std::string					_redirect;//
+	std::map<std::string, std::string>	_cgi;//".py" -> "/usr/bin/python3"
 
 	public:
 	LocationConfig();
@@ -53,6 +55,10 @@ class LocationConfig{
 	void	setRedirect(const std::string& redirect);
 	
 	bool	isMethodAllowed(const std::string& method) const;
+
+	void	addCgi(const std::string& extension, const std::string& interpreter);
+	//returns "" when this extension is not configured as a CGI here
+	std::string	getCgiInterpreter(const std::string& extension) const;
 };
 
 # endif
