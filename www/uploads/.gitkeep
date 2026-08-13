@@ -1,0 +1,2 @@
+This directory is where POST uploads are stored (upload_store in the config).
+Kept in git so the directory exists on a fresh clone.

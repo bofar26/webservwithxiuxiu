@@ -1,0 +1,58 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   LocationConfig.hpp                                 :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/07/27 15:36:52 by mipang            #+#    #+#             */
+/*   Updated: 2026/08/12 15:26:13 by xzhen            ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#ifndef LOCATIONCONFIG_HPP
+#define LOCATIONCONFIG_HPP
+
+#include <string>
+#include <vector>
+
+//new:
+//_allowedMethods, _autoindex, _uploadStore, _redirect 
+//+ 7 个 getter/setter 
+//+ isMethodAllowed()
+class LocationConfig{
+	private:
+	std::string					_path;//after location 
+	std::string					_root;//of page
+	std::string					_index;//by default
+	std::vector<std::string>	_allowedMethods;//GET POST 
+	bool						_autoindex;//true or false
+	std::string					_uploadStore;//./public
+	std::string					_redirect;//
+
+	public:
+	LocationConfig();
+	~LocationConfig();
+	LocationConfig(const LocationConfig& other);
+	LocationConfig& operator=(const LocationConfig& other);
+
+	std::string	getPath() const;
+	std::string	getRoot() const;
+	std::string	getIndex() const;
+	const std::vector<std::string>&	getAllowedMethods() const;
+	bool		getAutoindex() const;
+	std::string	getUploadStore() const;
+	std::string	getRedirect() const;
+	
+	void	setPath(const std::string& path);
+	void	setRoot(const std::string& root);
+	void	setIndex(const std::string& index);
+	void	setAllowedMethods(const std::vector<std::string>& methods);
+	void	setAutoindex(bool autoindex);
+	void	setUploadStore(const std::string& uploadStore);
+	void	setRedirect(const std::string& redirect);
+	
+	bool	isMethodAllowed(const std::string& method) const;
+};
+
+# endif
