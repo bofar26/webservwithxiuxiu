@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/13 00:00:00 by xzhen             #+#    #+#             */
-/*   Updated: 2026/08/13 21:43:43 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/14 18:26:28 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,7 +21,7 @@
 #include <sys/wait.h>
 
 namespace{
-	const time_t	cgiTimeout = 5;//a script that runs longer than this will be killed
+	const time_t	cgiTimeout = 5;//a script that makes no progress for this long is killed
 	const size_t	cgiReadLimit = 4096;//limit of one read from CGI stdout
 }
 
@@ -186,6 +186,7 @@ void	CgiHandler::onReadable()
 	if (byteread > 0)//sucess to read
 	{	//pushback byteread to _output
 		_output.append(buffer, static_cast<size_t>(byteread));
+		_start = time(NULL);
 		return ;
 	}
 	close(_outFd);
@@ -214,6 +215,7 @@ void	CgiHandler::onWritable()
 		return ;
 	}
 	_bodySent += static_cast<size_t>(bytesent);
+	_start = time(NULL);
 	if (_bodySent >= _body.size())//all of body has been sent
 	{
 		close(_inFd);
