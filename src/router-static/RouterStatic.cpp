@@ -25,8 +25,20 @@ HttpResponse Router::handleGet(const HttpRequest& request) const
 		std::string				dirPath = buildDirPath(request.getPath());
 		const LocationConfig	*location = findLocation(request.getPath());
 
-		if (isDirectory(dirPath) && location != NULL && location->getAutoindex())
-			return (buildAutoindexResponse(dirPath, request.getPath()));
+		if (isDirectory(dirPath))
+		{
+			std::string	index = _config.getIndex();
+
+			if (location != NULL && location->getIndex() != "")
+				index = location->getIndex();
+
+			std::string	indexPath = dirPath + "/" + index;
+
+			if (fileExists(indexPath))
+				return (buildFileResponse(indexPath));
+			if (location != NULL && location->getAutoindex())
+				return (buildAutoindexResponse(dirPath, request.getPath()));
+		}
 		return (buildErrorResponse(404));
 	}
 	return (buildFileResponse(filePath));//if file exixts

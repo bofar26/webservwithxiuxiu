@@ -56,7 +56,19 @@ class Connection{
 	Connection(const Connection& other);
 	Connection& operator=(const Connection& other);
 
+	//RFC 7230: header names are case insensitive and the value may be padded
+	//with spaces or tabs. These two do the lookup properly.
+	static std::string	toLower(const std::string& text);
+	static std::string	getHeaderValue(const std::string& headers,
+							const std::string& name);
+
 	bool	isRequestComplete() const;
+	//true when the client announced Transfer-Encoding: chunked
+	bool	isChunked() const;
+	//true when the terminating "0\r\n\r\n" chunk has arrived
+	bool	hasChunkedEnd() const;
+	//rebuilds the whole request with the chunk framing removed
+	void	unchunkBody();
 	//true when the announced Content-Length is over client_max_body_size
 	bool	isBodyTooLarge() const;
 	//queues a ready made response without going through the Router
@@ -80,6 +92,8 @@ class Connection{
 	bool	getWrite() const;//return true if _state == WRITING
 	bool	getDone() const;//return true if _state == DONE
 	bool	isTimedOut(time_t now) const;
+	bool	hasCgiTimedOut(time_t now) const;
+	void	abortCgi();
 
 	//the event loop needs these to put the CGI pipes in poll()
 	int		getCgiReadFd() const;//-1 when no script is running

@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
+#include <cctype>
 
 HttpRequest::HttpRequest():_method(""), _path(""), _version(""), _headers(), _body(""){}
 HttpRequest::HttpRequest(const std::string& rawRequest):_method(""), _path(""), _version(""), _headers(), _body("")
@@ -53,9 +54,21 @@ std::string HttpRequest::getVersion() const
 	return (_version);
 }
 
+//RFC 7230: header names are case insensitive. parse() stores every name in
+//lower case, so the lookup lowers the key too and callers can keep writing
+//getHeader("Content-Type") or getHeader("content-type") as they prefer.
+static std::string	lowerKey(const std::string& text)
+{
+	std::string	result = text;
+
+	for (size_t i = 0; i < result.size(); i++)
+		result[i] = std::tolower(static_cast<unsigned char>(result[i]));
+	return (result);
+}
+
 std::string HttpRequest::getHeader(const std::string key) const
 {
-	std::map<std::string, std::string>::const_iterator it = _headers.find(key);
+	std::map<std::string, std::string>::const_iterator it = _headers.find(lowerKey(key));
 	if (it == _headers.end())
 		return ("");
 	return (it->second);
@@ -95,8 +108,15 @@ void	HttpRequest::parse(const std::string& rawRequest)
 		std::string key = line.substr(0, split);
 		std::string value = line.substr(split + 1);
 
-		if (!value.empty() && value[0] == ' ')
-			value.erase(0, 1);
-		_headers[key] = value;
+		//the value may be padded with several spaces or tabs, not just one
+		size_t	start = value.find_first_not_of(" \t");
+		if (start == std::string::npos)
+			value = "";
+		else
+		{
+			size_t	end = value.find_last_not_of(" \t");
+			value = value.substr(start, end - start + 1);
+		}
+		_headers[lowerKey(key)] = value;//stored lowered, see getHeader()
 	}
 }

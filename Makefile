@@ -1,6 +1,7 @@
 NAME = webserv
 CXX = c++
-CXXFLAGS = -Wextra -Werror -Wall -std=c++98 -Iinclude
+
+CXXFLAGS = -Wextra -Werror -Wall -std=c++98 -Iinclude -MMD -MP
 SRC = main.cpp \
 	src/http-response/HttpResponse.cpp \
 	src/server/Server.cpp \
@@ -14,6 +15,7 @@ SRC = main.cpp \
 	src/config-parser/ServerConfig.cpp \
 	src/config-parser/LocationConfig.cpp
 OBJ = $(SRC:.cpp=.o)
+DEP = $(SRC:.cpp=.d)
 
 all:$(NAME)
 
@@ -21,12 +23,13 @@ $(NAME):$(OBJ)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $(NAME)
 
 clean:
-	rm -f $(OBJ)
+	rm -f $(OBJ) $(DEP)
 
 fclean:
-	rm -f $(OBJ) $(NAME)
+	rm -f $(OBJ) $(DEP) $(NAME)
 
 re:fclean all
 
-.PHONY:all clean fclean re
+-include $(DEP)
 
+.PHONY:all clean fclean re

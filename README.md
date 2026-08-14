@@ -4,58 +4,61 @@
 
 ## Description
 
-An HTTP server written from scratch in C++98, with no external library.
+An HTTP/1.1 server written in C++98, with no external library.
 
-The server reads an NGINX-like configuration file, opens one listening socket
-per `server` block, and serves static websites over HTTP/1.1. Every socket —
-listening sockets and client sockets alike — is non-blocking and driven by a
-single `poll()` call, so one slow or silent client can never block the others.
+It reads an NGINX-like configuration file, opens one listening socket per
+`server` block, and serves static sites, file uploads and CGI scripts. Every
+socket and every pipe is non-blocking and goes through a single `poll()` call,
+so one slow client cannot block the others.
 
-### Architecture
+### How the code is organised
 
 ```
-ConfigParser  ──>  ServerConfig / LocationConfig      (parsed once at startup)
-                          │
-Server  ──  one poll() loop over every socket
-   │
-   └── Connection  (one per client: READING -> WRITING -> DONE)
-              │
-              ├── HttpRequest    raw text  -> method / path / headers / body
-              ├── Router         request + config -> which file to serve
-              └── HttpResponse   status + headers + body -> raw text
+main.cpp            reads the config file, then starts the server
+ConfigParser        turns the config text into ServerConfig objects
+ServerConfig        one server block: port, root, error pages, locations
+LocationConfig      one location block: root, allowed methods, cgi, upload...
+Server              owns the listening sockets and the poll() loop
+Connection          one client: reads the request, then sends the response
+CgiHandler          one child process and its two pipes
+HttpRequest         parses the raw request text
+Router              decides what to answer, using the config
+HttpResponse        builds the raw response text
 ```
 
-| Class | Responsibility |
-| --- | --- |
-| `ConfigParser` | Tokenises the config file and builds one `ServerConfig` per `server` block |
-| `ServerConfig` / `LocationConfig` | Plain data holders for the parsed directives |
-| `Server` | Owns the listening sockets and the single `poll()` loop |
-| `Connection` | State machine for one client; buffers a partial request and a partial response |
-| `HttpRequest` | Parses the raw request text |
-| `Router` | Decides what to answer, using the config of the port the client arrived on |
-| `HttpResponse` | Builds the raw response text |
+A request goes through them in this order:
 
-### Implemented
+```
+Server (accept) -> Connection (recv) -> HttpRequest -> Router -> HttpResponse
+                                            |
+                                            +-> CgiHandler when the URL is a script
+```
 
-- Single `poll()` loop for every socket, listening sockets included
-- Non-blocking sockets; `recv`/`send` are only ever called after `poll()` reports readiness
-- No use of `errno` after a read or write operation
-- Several `server` blocks, one listening port each, served by the same process
-- Partial reads and partial writes handled across several loop iterations
-- `GET` and `DELETE`
-- Static file serving with a MIME type per extension
-- `location` blocks with prefix matching, per-location `root` and `index`
-- Idle-connection timeout, so a request can never hang forever
-- Graceful shutdown on `SIGINT`; `SIGPIPE` ignored
-- Malformed requests answered with `400` instead of crashing the server
+### What works
 
-### Not implemented yet
+- One `poll()` loop for every socket and every CGI pipe
+- Several `server` blocks, one port each, served by the same process
+- `GET`, `POST`, `DELETE`
+- Static files with a MIME type per extension
+- `location` blocks with prefix matching
+- `allowed_methods`, `autoindex`, `error_page`, `client_max_body_size`,
+  `return` (301 redirection), `upload_store`, `cgi_ext`
+- File upload, both as a raw body and as a browser form (multipart/form-data)
+- CGI (tested with Python), with the environment variables of RFC 3875
+- Chunked request bodies are un-chunked before anything else sees them
+- Header names are matched without case, as the RFC asks
+- Partial reads and partial writes are resumed on the next poll() round
+- Idle connections and runaway CGI scripts are closed after a timeout
+- Requests with `..` that would leave the root are refused with 400
 
-- `POST` and request bodies (`Content-Length`, chunked transfer encoding)
-- File upload
-- CGI
-- `allowed_methods`, `autoindex`, `error_page`, `client_max_body_size`, HTTP redirection
-- Path traversal protection (`..` in a URL is not rejected yet)
+### Known limits
+
+- Virtual hosts (several sites on one port, told apart by `Host`) are not
+  implemented. The subject says they are out of scope.
+- `location` matching returns the first block whose prefix matches, not the
+  longest one.
+- Only `HTTP/1.1` is accepted; `HTTP/1.0` gets a 505.
+- Responses are not chunked, only requests are un-chunked.
 
 ## Instructions
 
@@ -65,8 +68,8 @@ Server  ──  one poll() loop over every socket
 make
 ```
 
-Compiled with `c++ -Wall -Wextra -Werror -std=c++98`. Other rules: `make clean`,
-`make fclean`, `make re`.
+Rules: `all`, `clean`, `fclean`, `re`. Compiled with
+`c++ -Wall -Wextra -Werror -std=c++98`.
 
 ### Run
 
@@ -74,10 +77,16 @@ Compiled with `c++ -Wall -Wextra -Werror -std=c++98`. Other rules: `make clean`,
 ./webserv [configuration file]
 ```
 
-Without an argument the server falls back to `configs/default.conf`.
+Without an argument it falls back to `configs/default.conf`.
 
 ```bash
 ./webserv configs/multi.conf
+```
+
+The CGI scripts need the execute bit:
+
+```bash
+chmod +x www/cgi-bin/*.py
 ```
 
 ### Configuration
@@ -87,85 +96,131 @@ server {
     listen 8080;
     root ./www/blog;
     index index.html;
+    client_max_body_size 1m;
+    error_page 404 ./www/errors/404.html;
 
     location /public {
         root ./www/public;
-        index index.html;
+        allowed_methods GET;
     }
-}
 
-server {
-    listen 9090;
-    root ./www/shop;
-    index index.html;
+    location /uploads {
+        root ./www/uploads;
+        allowed_methods GET POST DELETE;
+        upload_store ./www/uploads;
+        autoindex on;
+    }
+
+    location /old {
+        return /public;
+    }
+
+    location /cgi-bin {
+        root ./www/cgi-bin;
+        allowed_methods GET POST;
+        cgi_ext .py /usr/bin/python3;
+    }
 }
 ```
 
-| Directive | Where | Meaning |
+| Directive | Where | What it does |
 | --- | --- | --- |
-| `listen` | `server` | Port this block listens on. Two blocks may not share a port. |
-| `root` | `server`, `location` | Directory the URL path is resolved against |
-| `index` | `server`, `location` | File served when the URL points at a directory |
-| `location <prefix>` | `server` | Rules for every URL starting with `<prefix>` |
+| `listen` | server | Port of this block. Two blocks cannot share a port. |
+| `root` | server, location | Directory the URL is resolved against |
+| `index` | server, location | File served when the URL points at a directory |
+| `client_max_body_size` | server | Largest body accepted. `1m`, `512k` or plain bytes. Over it: 413 |
+| `error_page` | server | `error_page 404 ./www/errors/404.html;` |
+| `location <prefix>` | server | Rules for URLs starting with `<prefix>` |
+| `allowed_methods` | location | Methods this route accepts. Missing means all. Refused: 405 |
+| `autoindex` | location | `on` lists the directory when there is no index file |
+| `upload_store` | location | Where POST bodies are written. Missing means uploads are refused |
+| `return` | location | Answers 301 with a `Location` header |
+| `cgi_ext` | location | `cgi_ext .py /usr/bin/python3;` |
 
-Path resolution strips the matched `location` prefix before appending the rest
-to `root`. With `location /public { root ./www/public; }`, the URL
-`/public/a.html` is served from `./www/public/a.html`.
+The matched `location` prefix is removed before the rest is added to `root`.
+With `location /public { root ./www/public; }`, the URL `/public/a.html` is
+served from `./www/public/a.html`.
 
 ### Testing
 
 ```bash
 ./webserv configs/multi.conf
-
-curl -i http://localhost:8080/          # blog index
-curl -i http://localhost:9090/          # shop index, same process
-curl -i http://localhost:8080/public    # location block
-curl -i http://localhost:8080/nope      # 404
 ```
 
-To check that a silent client cannot block the server, open a connection that
-sends half a request and leave it hanging, then issue normal requests on both
-ports; they must still be answered.
+From another terminal:
+
+```bash
+curl -i http://localhost:8080/                  # static page
+curl -i http://localhost:9090/                  # other site, same process
+curl -i http://localhost:8080/nothing.html      # custom 404 page
+curl -i http://localhost:8080/old               # 301 to /public
+curl -i -X DELETE http://localhost:8080/public  # 405, this route is GET only
+curl -i -F "file=@somefile" http://localhost:8080/uploads/
+curl -i http://localhost:8080/uploads/          # autoindex
+curl -i "http://localhost:8080/cgi-bin/hello.py?name=42"
+```
+
+A browser is the easiest way to see the upload form
+(`http://localhost:8080/upload.html`) and the directory listing.
+
+Two checks that matter more than the others:
+
+- Open a connection with `telnet localhost 8080`, type `GET / HTTP/1.1` and
+  stop there. Other requests must still be answered immediately.
+- Ask for `www/cgi-bin/slow.py`, which sleeps forever. It is killed after five
+  seconds and the server keeps serving everyone else in the meantime.
 
 ## Resources
 
 ### References
 
-- RFC 7230 — HTTP/1.1: Message Syntax and Routing
+- RFC 7230, HTTP/1.1 message syntax and routing
   <https://datatracker.ietf.org/doc/html/rfc7230>
-- RFC 7231 — HTTP/1.1: Semantics and Content
+- RFC 7231, HTTP/1.1 semantics and content
   <https://datatracker.ietf.org/doc/html/rfc7231>
-- RFC 3875 — The Common Gateway Interface (CGI) Version 1.1
+- RFC 3875, the CGI interface, for the list of environment variables
   <https://datatracker.ietf.org/doc/html/rfc3875>
-- Beej's Guide to Network Programming
-  <https://beej.us/guide/bgnet/>
-- NGINX documentation, used as the reference for configuration syntax and
-  behaviour <https://nginx.org/en/docs/>
-- MDN Web Docs — HTTP <https://developer.mozilla.org/en-US/docs/Web/HTTP>
-- `man 2 poll`, `man 2 socket`, `man 2 accept`, `man 2 fcntl`
+- Beej's Guide to Network Programming <https://beej.us/guide/bgnet/>
+- NGINX docs, used as the reference for the configuration syntax and for
+  behaviour we were unsure about <https://nginx.org/en/docs/>
+- MDN, HTTP section <https://developer.mozilla.org/en-US/docs/Web/HTTP>
+- `man 2 poll`, `man 2 socket`, `man 2 accept`, `man 2 execve`, `man 2 fcntl`
 
-### Use of AI
+On CGI:
 
-<!--
-  ⚠️ TODO: 这一节 PDF 强制要求，必须如实反映你们的实际情况。
-  下面是根据本项目实际过程写的草稿，交作业前请自己核对、按需增删。
-  评审可能会就这里写的内容提问，所以只保留你能解释的部分。
--->
+- Python docs on the cgi module, a short and clear introduction to what a CGI
+  script actually is <https://docs.python.org/fr/3.5/library/cgi.html>
+- Lawrence University course notes on CGI and processes. This one helped us
+  the most: it shows the fork / pipe / dup2 sequence step by step
+  <http://www2.lawrence.edu/fast/GREGGJ/CMSC480/process/cgi.html>
 
-AI assistance was used for the following:
+On chunked transfer encoding:
 
-- Reading the subject: translating the requirements and explaining the parts of
-  the socket, `poll` and CGI specifications we were unfamiliar with.
-- Small standalone example programs used to understand `fork`, `pipe`, `dup2`
-  and `execve` in isolation. They were learning material and are not part of the
-  server.
-- Reviewing our own code against the subject: finding blocking calls, missing
-  `close()`, iterator invalidation, and uses of `errno` that the subject forbids.
-- Discussing the design of the event loop before writing it, and reviewing the
-  result.
+- Pinggy, Content-Length and chunked encoding explained side by side
+  <https://pinggy.io/blog/understanding_content_length_header_and_chunked_encoding/>
+- A video tutorial on writing a chunked decoder in C++
+  <https://www.youtube.com/watch?v=vwbWD3FO89c>
 
-The configuration parser, the request and response classes and the router were
-written by us. For the event loop, the class design was discussed with AI and
-parts of the implementation were written with its help; every line was read,
-tested and is understood by us. Behaviour was verified against NGINX and with
-our own test requests.
+### How we used AI
+
+We used an AI assistant in these ways:
+
+- Finding useful tutorials and documentation, instead of searching blindly.
+- Explaining concepts we had never met before: sockets, `poll()`, what a normal
+  config file looks like, chunked encoding, CGI, POST and file upload, path
+  traversal, RFC, and why one slow client used to block the whole server.
+- Suggesting which functions to write and what each one should do, before we
+  started coding.
+- Reviewing the functions we wrote, testing our changes, and telling us what
+  was wrong and how to fix it.
+- Helping us read and take over the part of the code written by the other
+  member of the group.
+- Generating edge case tests to find bugs, for example malformed requests,
+  broken CGI scripts and oversized bodies.
+
+The config parser, the request and response classes and the router were
+written by us. For the event loop and the CGI class the design was discussed
+with the assistant and part of the code was written with its help. We read
+every line, rewrote what we did not like, and tested each behaviour with curl,
+a browser and our own scripts. We compared the answers with NGINX whenever the
+subject was not precise enough.

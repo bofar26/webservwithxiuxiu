@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   HttpResponse.cpp                                   :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: mipang <mipang@student.42.fr>              #+#  +:+       +#+        */
+/*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2026-07-09 13:19:10 by mipang            #+#    #+#             */
-/*   Updated: 2026-07-09 13:19:10 by mipang           ###   ########.fr       */
+/*   Created: 2026/07/09 13:19:10 by mipang            #+#    #+#             */
+/*   Updated: 2026/08/14 17:21:49 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -129,6 +129,10 @@ std::string HttpResponse::resolveStatusText(int code) const
 		case 413: return "Payload Too Large";
 		case 500: return "Internal Server Error";
 		case 501: return "Not Implemented";
+		//xzhen: only change in this file, added:431 502 504
+		case 431: return "Request Header Fields Too Large";
+		case 502: return "Bad Gateway";
+		case 504: return "Gateway Timeout";
 		case 505: return "HTTP Version Not Supported";
 		default:  return "Unknown";
 	}

@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/08/06 11:04:21 by xzhen             #+#    #+#             */
-/*   Updated: 2026/08/12 22:15:16 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/14 17:47:38 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <vector>
 #include <cstdlib>
+#include <cctype>
 #include <unistd.h>
 #include <sys/socket.h>
 
@@ -67,9 +68,30 @@ bool	Connection::getDone() const
 //a runaway script gets its own, much shorter deadline
 bool	Connection::isTimedOut(time_t now) const
 {
-	if (_cgi != NULL && _cgi->isTimedOut(now))
-		return (true);
+	if (_cgi != NULL)
+		return (false);
 	return (now - _lastActivity > connectionTimeout);
+}
+
+bool	Connection::hasCgiTimedOut(time_t now) const
+{
+	return (_cgi != NULL && _cgi->isTimedOut(now));
+}
+
+void	Connection::abortCgi()
+{
+	if (_cgi == NULL)
+		return ;
+	_cgi->killChild();
+	delete _cgi;
+	_cgi = NULL;
+
+	HttpResponse	response;
+
+	response.setStatus(504);
+	response.setHeader("Content-Type", "text/plain");
+	response.setBody("Gateway Timeout\n");
+	queueResponse(response, 504);
 }
 //
 void	Connection::toRead()
@@ -118,14 +140,18 @@ bool	Connection::isRequestComplete() const
 	if (headerEnd == std::string::npos)//didn't find a "\r\n\r\n"
 		return (false);
 
+	//a chunked body carries no Content-Length: it ends with a zero sized
+	//chunk, so that is what we wait for instead of counting bytes
+	if (isChunked())
+		return (hasChunkedEnd());
+
 	size_t		bodyStart = headerEnd + 4;//skip the empty line of post
 	std::string	header = _requestReceived.substr(0, headerEnd);//cut from 0 to headerEnd
-	size_t		pos = header.find("Content-Length:");
+	std::string	value = getHeaderValue(header, "Content-Length");
 
-	if (pos == std::string::npos)//request is complete
+	if (value.empty())//no body announced, request is complete
 		return (true);
 
-	std::string			value = header.substr(pos + 15);//skip "Content-Length:"
 	std::istringstream	iss(value);
 	size_t				length = 0;
 
@@ -134,6 +160,134 @@ bool	Connection::isRequestComplete() const
 	size_t	bodyReceived = _requestReceived.size() - bodyStart;
 	return (bodyReceived >= length);//processRequest util bodyReceived completely
 }
+
+//"Content-Length" and "content-length" name the same header, so both sides of
+//the comparison are lowered before comparing
+std::string	Connection::toLower(const std::string& text)
+{
+	std::string	result = text;
+
+	for (size_t i = 0; i < result.size(); i++)
+		result[i] = std::tolower(static_cast<unsigned char>(result[i]));
+	return (result);
+}
+
+//toLower the name, delete the head and end of headers, toLower it also, comparaison this two
+std::string	Connection::getHeaderValue(const std::string& headers,
+				const std::string& name)
+{
+	std::istringstream	stream(headers);
+	std::string			line;
+	std::string			target = toLower(name);
+
+	while (std::getline(stream, line))
+	{
+		if (!line.empty() && line[line.size() - 1] == '\r')
+			line.erase(line.size() - 1);//getline splits on \n, the \r stays
+
+		size_t	colon = line.find(':');
+		if (colon == std::string::npos)
+			continue ;//not a "name: value" line
+		if (toLower(line.substr(0, colon)) != target)
+			continue ;
+
+		std::string	value = line.substr(colon + 1);
+		size_t		start = value.find_first_not_of(" \t");
+
+		if (start == std::string::npos)
+			return ("");//header present but empty
+		size_t	end = value.find_last_not_of(" \t");
+		return (value.substr(start, end - start + 1));
+	}
+	return ("");
+}
+
+//is it a chunked body?
+bool	Connection::isChunked() const
+{
+	size_t	headerEnd = _requestReceived.find("\r\n\r\n");
+
+	if (headerEnd == std::string::npos)
+		return (false);
+	//the value is case insensitive too: "Chunked" is just as valid
+	return (toLower(getHeaderValue(_requestReceived.substr(0, headerEnd),
+			"Transfer-Encoding")) == "chunked");
+}
+
+//did server received a chunk of 0?  which symbol the end of chunked body
+bool	Connection::hasChunkedEnd() const
+{
+	return (_requestReceived.find("\r\n0\r\n\r\n") != std::string::npos);
+}
+
+//decoding the chunked body to normal body
+void	Connection::unchunkBody()
+{
+	size_t	headerEnd = _requestReceived.find("\r\n\r\n");
+
+	if (headerEnd == std::string::npos)
+		return ;
+
+	std::string	header = _requestReceived.substr(0, headerEnd);
+	std::string	raw = _requestReceived.substr(headerEnd + 4);
+	std::string	body;
+	size_t		pos = 0;
+
+	while (pos < raw.size())
+	{
+		size_t	lineEnd = raw.find("\r\n", pos);
+
+		if (lineEnd == std::string::npos)
+			break ;
+
+		//the size line is hexadecimal and may carry ";extensions" we ignore
+		std::string			sizeLine = raw.substr(pos, lineEnd - pos);
+		std::istringstream	iss(sizeLine);
+		size_t				chunkSize = 0;
+
+		iss >> std::hex >> chunkSize;
+		if (iss.fail())
+			break ;//malformed length: keep what was decoded so far
+		if (chunkSize == 0)//the terminating chunk
+			break ;
+
+		size_t	dataStart = lineEnd + 2;
+		if (dataStart + chunkSize > raw.size())
+			break ;//truncated stream
+		body.append(raw, dataStart, chunkSize);
+		pos = dataStart + chunkSize + 2;//skip the \r\n closing this chunk
+	}
+
+	//rewrite the headers: no more Transfer-Encoding, a correct Content-Length
+	std::string			cleaned;
+	std::istringstream	lines(header);
+	std::string			line;
+
+	while (std::getline(lines, line))
+	{
+		if (!line.empty() && line[line.size() - 1] == '\r')
+			line.erase(line.size() - 1);
+		//compare on the lowered name, the client may have written it any way
+		size_t	colon = line.find(':');
+		if (colon != std::string::npos)
+		{
+			std::string	key = toLower(line.substr(0, colon));
+
+			if (key == "transfer-encoding")
+				continue ;//the body is no longer chunked
+			if (key == "content-length")
+				continue ;//rewritten just below
+		}
+		cleaned += line + "\r\n";
+	}
+
+	std::ostringstream	length;
+	length << body.size();
+	cleaned += "Content-Length: " + length.str() + "\r\n";
+
+	_requestReceived = cleaned + "\r\n" + body;
+}
+
 //
 bool	Connection::isBodyTooLarge() const
 {
@@ -143,12 +297,12 @@ bool	Connection::isBodyTooLarge() const
 		return (false);
 
 	std::string	header = _requestReceived.substr(0, headerEnd);
-	size_t		pos = header.find("Content-Length:");
+	std::string	value = getHeaderValue(header, "Content-Length");
 
-	if (pos == std::string::npos)
+	if (value.empty())
 		return (false);
 
-	std::istringstream	iss(header.substr(pos + 15));
+	std::istringstream	iss(value);
 	size_t				length = 0;
 
 	iss >> length;
@@ -179,6 +333,11 @@ void	Connection::processRequest()
 	HttpResponse	response;
 	std::string		method = "-";
 	std::string		path = "-";
+
+	//strip the chunk framing before anything else looks at the request, so
+	//HttpRequest, the Router and the CGI all see an ordinary body
+	if (isChunked())
+		unchunkBody();
 
 	try
 	{
@@ -243,8 +402,14 @@ bool	Connection::startCgi(const HttpRequest& request, const Router& router)
 	env.push_back("SERVER_PORT=" + port.str());
 	env.push_back("REQUEST_METHOD=" + request.getMethod());
 	env.push_back("QUERY_STRING=" + query);
-	env.push_back("SCRIPT_NAME=" + request.getPath());
+	std::string	uri = request.getPath();
+	size_t		mark = uri.find('?');
+	std::string	pathOnly = (mark == std::string::npos) ? uri : uri.substr(0, mark);
+
+	env.push_back("SCRIPT_NAME=" + pathOnly);
 	env.push_back("SCRIPT_FILENAME=" + script);
+	env.push_back("PATH_INFO=" + pathOnly);
+	env.push_back("REQUEST_URI=" + uri);
 	env.push_back("CONTENT_LENGTH=" + length.str());
 	env.push_back("CONTENT_TYPE=" + request.getHeader("Content-Type"));
 	env.push_back("HTTP_HOST=" + request.getHeader("Host"));
@@ -273,7 +438,7 @@ void	Connection::finishCgi()
 {
 	HttpResponse	response;
 
-	if (_cgi == NULL || _cgi->isFailed())
+	if (_cgi == NULL || _cgi->isFailed() || _cgi->getOutput().empty())
 	{
 		response.setStatus(502);//the gateway (our CGI) misbehaved
 		response.setHeader("Content-Type", "text/plain");

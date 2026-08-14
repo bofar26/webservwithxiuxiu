@@ -261,8 +261,10 @@ void	Server::cleanConnectionInactive()
 
 	for (std::map<int, Connection *>::iterator it = _connections.begin();
 		it != _connections.end(); ++it)
-	{    
-		if (it->second->isTimedOut(now))
+	{
+		if (it->second->hasCgiTimedOut(now))
+			it->second->abortCgi();
+		else if (it->second->isTimedOut(now))
 			stale.push_back(it->first);
 	}
 	for (size_t i = 0; i < stale.size(); i++)
