@@ -34,6 +34,8 @@ class HttpRequest {
 	std::string	getVersion() const;
 	std::string	getHeader(const std::string key) const;
 	std::string	getBody() const;
+	//xzhen: added, the CGI needs every header to build its HTTP_* variables
+	const std::map<std::string, std::string>&	getHeaders() const;
 
 	void	parse(const std::string& rawRequest);
 };

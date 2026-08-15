@@ -83,10 +83,7 @@ HttpResponse Router::handlePost(const HttpRequest& request) const
 		fileName = "upload";
 		fileData = request.getBody();
 	}
-	//client uploads 0 bytes
-	if (fileData.empty())
-		return (buildErrorResponse(400));
-
+	//an empty body is a valid upload, it simply creates an empty file
 	//shouldn't trust clients, in case if they want to write something in SECRET.txt
 	if (fileName.find('/') != std::string::npos
 		|| fileName.find("..") != std::string::npos || fileName.empty())
@@ -137,8 +134,10 @@ bool	Router::isCgiRequest(const HttpRequest& request, std::string& interpreter,
 	if (interpreter == "")//this extension is not declared as a CGI here
 		return (false);
 
+	//the interpreter is the program that answers, so the target file is not
+	//required to exist: a missing script is reported by the interpreter itself
 	scriptPath = buildFilePath(path);
-	return (fileExists(scriptPath));
+	return (true);
 }
 
 bool	Router::extractMultipart(const std::string& body, const std::string& contentType,

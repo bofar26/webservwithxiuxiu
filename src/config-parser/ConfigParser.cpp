@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/07/15 13:21:19 by mipang            #+#    #+#             */
-/*   Updated: 2026/08/12 17:48:09 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/15 17:45:39 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,6 +38,16 @@ std::vector<std::string> ConfigParser::tokenize(const std::string content) const
 				tokens.push_back(current);
 				current.clear();
 			}
+		}
+		else if (content[i] == '#')//like nginx, a comment runs to end of line
+		{
+			if (!current.empty())
+			{
+				tokens.push_back(current);
+				current.clear();
+			}
+			while (i < content.size() && content[i] != '\n')
+				i++;
 		}
 		else if (content[i] == '{' || content[i] == '}' || content[i] == ';')
 		{
@@ -172,6 +182,11 @@ void	ConfigParser::parseInsideBlock(const std::vector<std::string>& tokens, size
 	else if (directive == "index")
 	{
 		config.setIndex(tokens[pos]);
+		pos++;
+	}
+	else if (directive == "client_max_body_size")//lowers the server limit here
+	{
+		config.setClientMaxBodySize(parseSize(tokens[pos]));
 		pos++;
 	}
 	else if (directive == "upload_store")

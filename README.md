@@ -44,8 +44,10 @@ Server (accept) -> Connection (recv) -> HttpRequest -> Router -> HttpResponse
 - `allowed_methods`, `autoindex`, `error_page`, `client_max_body_size`,
   `return` (301 redirection), `upload_store`, `cgi_ext`
 - File upload, both as a raw body and as a browser form (multipart/form-data)
-- CGI (tested with Python), with the environment variables of RFC 3875
-- Chunked request bodies are un-chunked before anything else sees them
+- CGI (tested with Python), with the environment variables of RFC 3875.
+  Every request header is passed to the script as `HTTP_<NAME>`
+- Chunked request bodies are un-chunked before anything else sees them, and
+  the size limit is applied to the decoded body
 - Header names are matched without case, as the RFC asks
 - Partial reads and partial writes are resumed on the next poll() round
 - Idle connections and runaway CGI scripts are closed after a timeout
@@ -59,6 +61,11 @@ Server (accept) -> Connection (recv) -> HttpRequest -> Router -> HttpResponse
   longest one.
 - Only `HTTP/1.1` is accepted; `HTTP/1.0` gets a 505.
 - Responses are not chunked, only requests are un-chunked.
+- When a URL matches a `cgi_ext` extension, the interpreter is started even if
+  the target file is missing, because the interpreter is the program that
+  answers. A missing script therefore ends in 502 and not in 404.
+- A large body is kept in memory while it is being handled, so a 100 MB upload
+  costs about 200 MB of RSS.
 
 ## Instructions
 
@@ -91,9 +98,11 @@ chmod +x www/cgi-bin/*.py
 
 ### Configuration
 
+Everything after a `#` is ignored, up to the end of the line.
+
 ```nginx
 server {
-    listen 8080;
+    listen 8080;            # one port per server block
     root ./www/blog;
     index index.html;
     client_max_body_size 1m;
@@ -128,7 +137,7 @@ server {
 | `listen` | server | Port of this block. Two blocks cannot share a port. |
 | `root` | server, location | Directory the URL is resolved against |
 | `index` | server, location | File served when the URL points at a directory |
-| `client_max_body_size` | server | Largest body accepted. `1m`, `512k` or plain bytes. Over it: 413 |
+| `client_max_body_size` | server, location | Largest body accepted. `1m`, `512k` or plain bytes. Over it: 413. In a `location` it lowers the server value for that route only |
 | `error_page` | server | `error_page 404 ./www/errors/404.html;` |
 | `location <prefix>` | server | Rules for URLs starting with `<prefix>` |
 | `allowed_methods` | location | Methods this route accepts. Missing means all. Refused: 405 |
@@ -162,6 +171,32 @@ curl -i "http://localhost:8080/cgi-bin/hello.py?name=42"
 
 A browser is the easiest way to see the upload form
 (`http://localhost:8080/upload.html`) and the directory listing.
+
+### The tester given with the subject
+
+`configs/tester.conf` is written for it. Build the tree it expects first:
+
+```bash
+mkdir -p YoupiBanane/nop YoupiBanane/Yeah
+echo "youpi bad extension content" > YoupiBanane/youpi.bad_extension
+echo "youpi bla content"           > YoupiBanane/youpi.bla
+echo "nop bad ext"                 > YoupiBanane/nop/youpi.bad_extension
+echo "other pouic"                 > YoupiBanane/nop/other.pouic
+echo "not happy"                   > YoupiBanane/Yeah/not_happy.bad_extension
+cp <path to cgi_tester> YoupiBanane/ && chmod +x YoupiBanane/cgi_tester
+```
+
+`cgi_tester` has to sit inside `YoupiBanane` because the child process moves
+into the directory of the script before `execve`, so `./cgi_tester` is resolved
+from there. Then:
+
+```bash
+./webserv configs/tester.conf
+./tester http://localhost:8080
+```
+
+The last test opens 20 connections that each upload 100 MB. It needs a few GB
+of free memory.
 
 Two checks that matter more than the others:
 
@@ -218,9 +253,3 @@ We used an AI assistant in these ways:
 - Generating edge case tests to find bugs, for example malformed requests,
   broken CGI scripts and oversized bodies.
 
-The config parser, the request and response classes and the router were
-written by us. For the event loop and the CGI class the design was discussed
-with the assistant and part of the code was written with its help. We read
-every line, rewrote what we did not like, and tested each behaviour with curl,
-a browser and our own scripts. We compared the answers with NGINX whenever the
-subject was not precise enough.

@@ -79,6 +79,12 @@ std::string HttpRequest::getBody() const
 	return (_body);
 }
 
+//xzhen: only change in this file, added this getter for the CGI
+const std::map<std::string, std::string>&	HttpRequest::getHeaders() const
+{
+	return (_headers);
+}
+
 void	HttpRequest::parse(const std::string& rawRequest)
 {
 	std::size_t	headerend = rawRequest.find("\r\n\r\n");

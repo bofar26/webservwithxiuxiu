@@ -6,7 +6,7 @@
 /*   By: xzhen <xzhen@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/07/27 15:36:52 by mipang            #+#    #+#             */
-/*   Updated: 2026/08/12 15:26:13 by xzhen            ###   ########.fr       */
+/*   Updated: 2026/08/15 17:10:33 by xzhen            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,10 +16,11 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cstddef>
 
 //new:
 //_allowedMethods, _autoindex, _uploadStore, _redirect 
-//+ 7 个 getter/setter 
+//+ 7 getter/setter 
 //+ isMethodAllowed()
 class LocationConfig{
 	private:
@@ -31,6 +32,7 @@ class LocationConfig{
 	std::string					_uploadStore;//./public
 	std::string					_redirect;//
 	std::map<std::string, std::string>	_cgi;//".py" -> "/usr/bin/python3"
+	std::size_t					_maxBodySize;//0 means: keep the server value
 
 	public:
 	LocationConfig();
@@ -45,7 +47,8 @@ class LocationConfig{
 	bool		getAutoindex() const;
 	std::string	getUploadStore() const;
 	std::string	getRedirect() const;
-	
+	std::size_t	getClientMaxBodySize() const;
+
 	void	setPath(const std::string& path);
 	void	setRoot(const std::string& root);
 	void	setIndex(const std::string& index);
@@ -53,6 +56,7 @@ class LocationConfig{
 	void	setAutoindex(bool autoindex);
 	void	setUploadStore(const std::string& uploadStore);
 	void	setRedirect(const std::string& redirect);
+	void	setClientMaxBodySize(std::size_t size);
 	
 	bool	isMethodAllowed(const std::string& method) const;
 

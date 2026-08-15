@@ -15,7 +15,7 @@
 LocationConfig::LocationConfig()
 	: _path("/"), _root("./www"), _index("index.html"),
 	  _allowedMethods(), _autoindex(false), _uploadStore(""), _redirect(""),
-	  _cgi(){}
+	  _cgi(), _maxBodySize(0){}
 
 LocationConfig::~LocationConfig(){}
 
@@ -35,6 +35,7 @@ LocationConfig& LocationConfig::operator=(const LocationConfig& other)
 		_uploadStore = other._uploadStore;
 		_redirect = other._redirect;
 		_cgi = other._cgi;
+		_maxBodySize = other._maxBodySize;
 	}
 	return (*this);
 }
@@ -110,6 +111,17 @@ void	LocationConfig::setUploadStore(const std::string& uploadStore)
 void	LocationConfig::setRedirect(const std::string& redirect)
 {
 	_redirect = redirect;
+}
+
+//0 is the "not written in this block" value, the server limit then applies
+std::size_t	LocationConfig::getClientMaxBodySize() const
+{
+	return (_maxBodySize);
+}
+
+void	LocationConfig::setClientMaxBodySize(std::size_t size)
+{
+	_maxBodySize = size;
 }
 
 bool	LocationConfig::isMethodAllowed(const std::string& method) const{

@@ -220,6 +220,7 @@ void	CgiHandler::onWritable()
 	{
 		close(_inFd);
 		_inFd = -1;
+		std::string().swap(_body);
 	}
 }
 

@@ -217,7 +217,12 @@ bool	Connection::isChunked() const
 //did server received a chunk of 0?  which symbol the end of chunked body
 bool	Connection::hasChunkedEnd() const
 {
-	return (_requestReceived.find("\r\n0\r\n\r\n") != std::string::npos);
+	const std::string	mark = "\r\n0\r\n\r\n";
+	size_t				from = 0;
+
+	if (_requestReceived.size() > readLimit + mark.size())
+		from = _requestReceived.size() - readLimit - mark.size();
+	return (_requestReceived.find(mark, from) != std::string::npos);
 }
 
 //decoding the chunked body to normal body
@@ -232,6 +237,8 @@ void	Connection::unchunkBody()
 	std::string	raw = _requestReceived.substr(headerEnd + 4);
 	std::string	body;
 	size_t		pos = 0;
+
+	std::string().swap(_requestReceived);
 
 	while (pos < raw.size())
 	{
@@ -257,6 +264,8 @@ void	Connection::unchunkBody()
 		body.append(raw, dataStart, chunkSize);
 		pos = dataStart + chunkSize + 2;//skip the \r\n closing this chunk
 	}
+
+	std::string().swap(raw);
 
 	//rewrite the headers: no more Transfer-Encoding, a correct Content-Length
 	std::string			cleaned;
@@ -285,7 +294,10 @@ void	Connection::unchunkBody()
 	length << body.size();
 	cleaned += "Content-Length: " + length.str() + "\r\n";
 
-	_requestReceived = cleaned + "\r\n" + body;
+	cleaned += "\r\n";
+	cleaned += body;
+	std::string().swap(body);
+	_requestReceived.swap(cleaned);
 }
 
 //
@@ -306,7 +318,34 @@ bool	Connection::isBodyTooLarge() const
 	size_t				length = 0;
 
 	iss >> length;
-	return (length > _config.getClientMaxBodySize());
+
+	//a location may lower the server limit for its own route
+	std::string	path;
+	size_t		first = header.find("\r\n");
+	std::string	line = header.substr(0, first == std::string::npos ? header.size() : first);
+	size_t		sp1 = line.find(' ');
+
+	if (sp1 != std::string::npos)
+	{
+		size_t	sp2 = line.find(' ', sp1 + 1);
+
+		path = line.substr(sp1 + 1,
+				sp2 == std::string::npos ? std::string::npos : sp2 - sp1 - 1);
+	}
+
+	const std::vector<LocationConfig>&	spots = _config.getLocation();
+	size_t								limit = _config.getClientMaxBodySize();
+
+	for (size_t i = 0; i < spots.size(); i++)
+	{
+		if (path.compare(0, spots[i].getPath().length(), spots[i].getPath()) == 0)
+		{
+			if (spots[i].getClientMaxBodySize() != 0)
+				limit = spots[i].getClientMaxBodySize();
+			break ;
+		}
+	}
+	return (length > limit);
 }
 
 //prepare a response when body is to large
@@ -336,13 +375,24 @@ void	Connection::processRequest()
 
 	//strip the chunk framing before anything else looks at the request, so
 	//HttpRequest, the Router and the CGI all see an ordinary body
+	//the size limit is checked again here: a chunked request announces no
+	//Content-Length, so before decoding there was nothing to compare
 	if (isChunked())
+	{
 		unchunkBody();
+		if (isBodyTooLarge())
+		{
+			queueError(413, "Payload Too Large");
+			return ;
+		}
+	}
 
 	try
 	{
 		HttpRequest	request(_requestReceived);
 		Router		router(_config);
+
+		std::string().swap(_requestReceived);
 
 		method = request.getMethod();
 		path = request.getPath();
@@ -412,7 +462,26 @@ bool	Connection::startCgi(const HttpRequest& request, const Router& router)
 	env.push_back("REQUEST_URI=" + uri);
 	env.push_back("CONTENT_LENGTH=" + length.str());
 	env.push_back("CONTENT_TYPE=" + request.getHeader("Content-Type"));
-	env.push_back("HTTP_HOST=" + request.getHeader("Host"));
+	//RFC 3875: every request header becomes HTTP_<NAME>, dashes turned into
+	//underscores, Content-Length and Content-Type excluded, they are above
+	const std::map<std::string, std::string>&			all = request.getHeaders();
+	std::map<std::string, std::string>::const_iterator	it;
+
+	for (it = all.begin(); it != all.end(); ++it)
+	{
+		std::string	name = it->first;
+
+		for (size_t i = 0; i < name.size(); i++)
+		{
+			if (name[i] == '-')
+				name[i] = '_';
+			else
+				name[i] = std::toupper(static_cast<unsigned char>(name[i]));
+		}
+		if (name == "CONTENT_LENGTH" || name == "CONTENT_TYPE")
+			continue ;
+		env.push_back("HTTP_" + name + "=" + it->second);
+	}
 	env.push_back("REDIRECT_STATUS=200");//php-cgi refuses to run without it
 	env.push_back("PATH=/usr/local/bin:/usr/bin:/bin");
 
