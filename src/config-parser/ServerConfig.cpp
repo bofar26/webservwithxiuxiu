@@ -14,7 +14,7 @@
 
 
 ServerConfig::ServerConfig()
-	: _port(8080), _root("./www"), _index("index.html"), _locations(),
+	: _host("0.0.0.0"), _port(8080), _root("./www"), _index("index.html"), _locations(),
 	  _clientMaxBodySize(1048576), _errorPages(){}//1 MiB by default
 ServerConfig::~ServerConfig(){};
 ServerConfig::ServerConfig(const ServerConfig& other)
@@ -25,6 +25,7 @@ ServerConfig& ServerConfig::operator=(const ServerConfig& other)
 {
 	if (this != &other)
 	{
+		_host = other._host;
 		_port = other._port;
 		_root = other._root;
 		_index = other._index;
@@ -38,6 +39,12 @@ void	ServerConfig::setPort(int port)
 {
 	_port = port;
 }
+
+void	ServerConfig::setHost(const std::string& host)
+{
+	_host = host;
+}
+
 void	ServerConfig::setRoot(std::string root)
 {
 	_root = root;
@@ -55,6 +62,11 @@ void	ServerConfig::addLocation(const LocationConfig& location)
 int	ServerConfig::getPort() const
 {
 	return (_port);
+}
+
+std::string	ServerConfig::getHost() const
+{
+	return (_host);
 }
 
 std::string	ServerConfig::getRoot() const
@@ -95,4 +107,3 @@ std::string	ServerConfig::getErrorPage(int code) const//
 		return ("");
 	return (it->second);
 }
-

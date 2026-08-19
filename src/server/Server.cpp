@@ -17,6 +17,7 @@
 #include <cstring>
 #include <cerrno>
 #include <csignal>
+#include <cstdlib>
 #include <sstream>
 #include <stdexcept>
 
@@ -28,6 +29,34 @@
 namespace{
 	const int	POLL_TIMEOUT_MS = 1000;//close inactive connections every POLL_TIMEOUT_MS ms
 	const int	maximumConnections = 128;//listen socket can wait au maximum maximumConnections client to connect
+
+	bool	parseIpv4Address(const std::string& host, unsigned long& result)
+	{
+		std::istringstream	stream(host);
+		std::string			part;
+		unsigned long		octets[4];
+		size_t				count = 0;
+
+		while (std::getline(stream, part, '.'))
+		{
+			char	*end = NULL;
+			long	value;
+
+			if (count >= 4 || part.empty())
+				return (false);
+			errno = 0;
+			value = std::strtol(part.c_str(), &end, 10);
+			if (errno != 0 || end == part.c_str() || *end != '\0'
+				|| value < 0 || value > 255)
+				return (false);
+			octets[count++] = static_cast<unsigned long>(value);
+		}
+		if (count != 4)
+			return (false);
+		result = (octets[0] << 24) | (octets[1] << 16)
+			| (octets[2] << 8) | octets[3];
+		return (true);
+	}
 }
 //tell to server to stop when g_stop=1, so that it can clean up and close sockets.
 volatile sig_atomic_t	g_stop = 0;
@@ -52,12 +81,13 @@ Server::~Server()
 		close(it->first);
 }
 
-//create a listening socket for the given port
-int	Server::createListenSocket(int port)
+//create a listening socket for the given host and port
+int	Server::createListenSocket(const std::string& host, int port)
 {
 	struct sockaddr_in	address;
 	int					fd;
 	int					opt = 1;
+	unsigned long		bindAddress = 0;
 
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd == -1)
@@ -80,12 +110,18 @@ int	Server::createListenSocket(int port)
 	//struct sockaddr_in is used for IPv4 addresses, it contains the address family, port and IP address.
 	memset(&address, 0, sizeof(address));//initialize the address structure to zero
 	address.sin_family = AF_INET;//ipv4
-	address.sin_addr.s_addr = INADDR_ANY;//bind to all available network interfaces
+	if (!parseIpv4Address(host, bindAddress))
+	{
+		std::cerr << "invalid listen host: " << host << std::endl;
+		close(fd);
+		throw std::runtime_error("invalid listen host.");
+	}
+	address.sin_addr.s_addr = htonl(bindAddress);
 	address.sin_port = htons(port);//set the port number, htons converts port number to network number
 	//bind associates the socket with port and ip, eg:fd=3 -> 127.0.0.1:8080
 	if (bind(fd, reinterpret_cast<struct sockaddr *>(&address), sizeof(address)) == -1)
 	{
-		std::cerr << "bind error on port " << port << ": "
+		std::cerr << "bind error on " << host << ":" << port << ": "
 			<< std::strerror(errno) << std::endl;
 		close(fd);
 		throw std::runtime_error("bind() failed.");
@@ -107,7 +143,7 @@ void	Server::setListenSocket()
 		throw std::runtime_error("No server configuration to listen with.");
 	for (size_t i = 0; i < _configs.size(); i++)
 	{
-		int	fd = createListenSocket(_configs[i].getPort());
+		int	fd = createListenSocket(_configs[i].getHost(), _configs[i].getPort());
 
 		_listenFds[fd] = i;
 	}
@@ -281,7 +317,8 @@ void	Server::start()
 	std::cout << "webserv listening on";
 	for (std::map<int, size_t>::iterator it = _listenFds.begin();
 		it != _listenFds.end(); ++it)
-		std::cout << " " << _configs[it->second].getPort()
+		std::cout << " " << _configs[it->second].getHost()
+				  << ":" << _configs[it->second].getPort()
 				  << " (" << _configs[it->second].getRoot() << ")";
 	std::cout << std::endl;
 

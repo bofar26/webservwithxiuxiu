@@ -7,7 +7,7 @@
 An HTTP/1.1 server written in C++98, with no external library.
 
 It reads an NGINX-like configuration file, opens one listening socket per
-`server` block, and serves static sites, file uploads and CGI scripts. Every
+`listen` address, and serves static sites, file uploads and CGI scripts. Every
 socket and every pipe is non-blocking and goes through a single `poll()` call,
 so one slow client cannot block the others.
 
@@ -37,7 +37,7 @@ Server (accept) -> Connection (recv) -> HttpRequest -> Router -> HttpResponse
 ### What works
 
 - One `poll()` loop for every socket and every CGI pipe
-- Several `server` blocks, one port each, served by the same process
+- Several `server` blocks, one interface/port each, served by the same process
 - `GET`, `POST`, `DELETE`
 - Static files with a MIME type per extension
 - `location` blocks with prefix matching
@@ -102,7 +102,7 @@ Everything after a `#` is ignored, up to the end of the line.
 
 ```nginx
 server {
-    listen 8080;            # one port per server block
+    listen 127.0.0.1:8080;  # host:port, or just 8080 for all interfaces
     root ./www/blog;
     index index.html;
     client_max_body_size 1m;
@@ -134,7 +134,7 @@ server {
 
 | Directive | Where | What it does |
 | --- | --- | --- |
-| `listen` | server | Port of this block. Two blocks cannot share a port. |
+| `listen` | server | Address of this block. Use `8080`, `127.0.0.1:8080` or `*:8080`. Two blocks cannot share the same address; `0.0.0.0:PORT` conflicts with every interface on that port. |
 | `root` | server, location | Directory the URL is resolved against |
 | `index` | server, location | File served when the URL points at a directory |
 | `client_max_body_size` | server, location | Largest body accepted. `1m`, `512k` or plain bytes. Over it: 413. In a `location` it lowers the server value for that route only |
@@ -252,4 +252,3 @@ We used an AI assistant in these ways:
   member of the group.
 - Generating edge case tests to find bugs, for example malformed requests,
   broken CGI scripts and oversized bodies.
-

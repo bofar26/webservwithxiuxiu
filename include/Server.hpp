@@ -35,7 +35,7 @@ class Server{
 	Server(const Server& other);
 	Server& operator=(const Server& other);
 
-	int		createListenSocket(int port);//will be called in setListenSocket
+	int		createListenSocket(const std::string& host, int port);//will be called in setListenSocket
 	void	setListenSocket();
 
 	void	buildPollSet();//put all fds into poll()

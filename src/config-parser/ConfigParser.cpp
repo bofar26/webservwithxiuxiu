@@ -18,6 +18,8 @@
 #include <string>
 #include <stdexcept>
 #include <cstdlib>
+#include <cerrno>
+#include <climits>
 
 
 ConfigParser::ConfigParser(){}
@@ -128,7 +130,7 @@ void	ConfigParser::parseInsideBlock(const std::vector<std::string>& tokens, size
 		throw std::runtime_error("Expected value after " + directive);
 	if (directive == "listen")
 	{
-		config.setPort(atoi(tokens[pos].c_str()));
+		parseListenValue(tokens[pos], config);
 		pos++;
 	}
 	else if (directive == "root")
@@ -279,22 +281,64 @@ std::size_t	ConfigParser::parseSize(const std::string& text) const
 		throw std::runtime_error("Unknown size unit in config: " + text);
 	return (value);
 }
-//check if servers listen the same port
+
+int	ConfigParser::parsePort(const std::string& text) const
+{
+	char	*end = NULL;
+	long	value;
+
+	if (text.empty())
+		throw std::runtime_error("Empty listen port");
+	errno = 0;
+	value = std::strtol(text.c_str(), &end, 10);
+	if (errno != 0 || end == text.c_str() || *end != '\0'
+		|| value <= 0 || value > 65535)
+		throw std::runtime_error("Invalid listen port: " + text);
+	return (static_cast<int>(value));
+}
+
+void	ConfigParser::parseListenValue(const std::string& value,
+			ServerConfig& config) const
+{
+	size_t	colon = value.find(':');
+
+	if (colon == std::string::npos)
+	{
+		config.setHost("0.0.0.0");
+		config.setPort(parsePort(value));
+		return ;
+	}
+	if (colon == 0 || colon + 1 >= value.size()
+		|| value.find(':', colon + 1) != std::string::npos)
+		throw std::runtime_error("Invalid listen value: " + value);
+
+	std::string	host = value.substr(0, colon);
+	if (host == "*")
+		host = "0.0.0.0";
+	config.setHost(host);
+	config.setPort(parsePort(value.substr(colon + 1)));
+}
+
+//check if servers listen the same address. 0.0.0.0 conflicts with every
+//interface on the same port because it binds all IPv4 interfaces.
 void	ConfigParser::checkDuplicatePorts(const std::vector<ServerConfig>& servers) const
 {
 	for (size_t i = 0; i < servers.size(); i++)
 	{
 		for (size_t j = i + 1; j < servers.size(); j++)
 		{
-			if (servers[i].getPort() == servers[j].getPort())
+			if (servers[i].getPort() == servers[j].getPort()
+				&& (servers[i].getHost() == servers[j].getHost()
+					|| servers[i].getHost() == "0.0.0.0"
+					|| servers[j].getHost() == "0.0.0.0"))
 			{
 				std::ostringstream	message;
 
-				message << "Duplicate listen port in config: " << servers[i].getPort();
+				message << "Duplicate listen address in config: "
+					<< servers[i].getHost() << ":" << servers[i].getPort();
 				throw std::runtime_error(message.str());
 			}
 		}
 	}
 }
-
 

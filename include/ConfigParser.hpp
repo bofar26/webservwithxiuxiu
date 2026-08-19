@@ -24,8 +24,10 @@ class	ConfigParser{
 	void	parseLocationBlock(const std::vector<std::string>& tokens, size_t& pos, ServerConfig& config) const;
 	void	parseInsideBlock(const std::vector<std::string>& tokens, size_t& pos, ServerConfig& config) const;
 	void	parseInsideBlock(const std::vector<std::string>& tokens, size_t& pos, LocationConfig& config) const;
+	void	parseListenValue(const std::string& value, ServerConfig& config) const;
 
 	void	checkDuplicatePorts(const std::vector<ServerConfig>& servers) const;
+	int		parsePort(const std::string& text) const;
 	//transform .config string to her size 
 	std::size_t	parseSize(const std::string& text) const;
 

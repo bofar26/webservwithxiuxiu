@@ -27,6 +27,7 @@
 
 class ServerConfig{
 	private:
+	std::string					_host;
 	int							_port;
 	std::string					_root;
 	std::string					_index;
@@ -41,12 +42,14 @@ class ServerConfig{
 	ServerConfig& operator=(const ServerConfig& other);
 
 	void	setPort(int port);
+	void	setHost(const std::string& host);
 	void	setRoot(std::string root);
 	void	setIndex(std::string index);
 	void	addLocation(const LocationConfig& _location);
 	void	setClientMaxBodySize(std::size_t size);//
 	void	addErrorPage(int code, const std::string& path);//
 
+	std::string	getHost() const;
 	int			getPort() const;
 	std::string	getRoot() const;
 	std::string	getIndex() const;
